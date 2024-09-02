@@ -169,7 +169,7 @@ usage_and_exit(void)
         "-U -- don't output games that only occur once. (See -d).",
         "-vvariations -- the file variations contains the textual lines of interest.",
         "-V -- don't include variations in the output. Ordinarily these are retained.",
-        "-wwidth -- set width as an approximate line width for output.",
+        "-wwidth -- set width as an approximate line width for output. 0 means unlimited.",
         "-W[cm|epd|halg|lalg|elalg|xlalg|xolalg|san] -- specify the output format to use.",
         "      Default is SAN.",
         "      -W means use the input format.",
@@ -224,6 +224,7 @@ usage_and_exit(void)
         "--help - see -h",
         "--insufficient - only output games that end with insufficient mating material.",
         "--json - output the game in JSON format",
+        "--tsv - output the game in TSV format",
         "--keepbroken - retain games with errors",
         "--lichesscommentfix - move comments at the start of a variation to after the first move of the variation.",
         "--linelength - see -w",
@@ -1252,6 +1253,10 @@ process_long_form_argument(const char *argument, const char *associated_value)
     }
     else if (stringcompare(argument, "json") == 0) {
         GlobalState.json_format = TRUE;
+        return 1;
+    }
+    else if (stringcompare(argument, "tsv") == 0) {
+        GlobalState.tsv_format = TRUE;
         return 1;
     }
     else if (stringcompare(argument, "keepbroken") == 0) {

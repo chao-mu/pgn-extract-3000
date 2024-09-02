@@ -91,6 +91,7 @@ StateInfo GlobalState = {
     FALSE,              /* keep_broken_games (--keepbroken) */
     FALSE,              /* suppress_redundant_ep_info (--nofauxep) */
     FALSE,              /* json_format (--json) */
+    FALSE,              /* tsv_format (--tsv) */
     FALSE,              /* tag_match_anywhere (--tagsubstr) */
     FALSE,              /* match_underpromotion (--underpromotion) */
     FALSE,              /* suppress_matched (--suppressmatched) */
@@ -387,14 +388,28 @@ main(int argc, char *argv[])
     if (GlobalState.json_format) {
         if (GlobalState.output_format != EPD &&
                 GlobalState.output_format != CM &&
+                GlobalState.tsv_format == FALSE &&
                 GlobalState.ECO_level == DONT_DIVIDE) {
             GlobalState.keep_comments = FALSE;
             GlobalState.keep_variations = FALSE;
             GlobalState.keep_results = FALSE;
         }
         else {
-            fprintf(GlobalState.logfile, "JSON output is not currently supported with -E, -Wepd or -Wcm\n");
+            fprintf(GlobalState.logfile, "JSON output is not currently supported with -E, -Wepd, -tsv or -Wcm\n");
             GlobalState.json_format = FALSE;
+        }
+    }
+
+    /* Make some adjustments to other settings if TSV output is required. */
+    if (GlobalState.tsv_format) {
+        if (GlobalState.json_format == FALSE &&
+                GlobalState.output_format != CM &&
+                GlobalState.separate_comment_lines == FALSE) {
+            GlobalState.max_line_length = 0;
+        }
+        else {
+            fprintf(GlobalState.logfile, "JSON output is not currently supported with --json or --commentlines and requires a fixed number of tags\n");
+            GlobalState.tsv_format = FALSE;
         }
     }
 

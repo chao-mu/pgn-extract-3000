@@ -292,6 +292,8 @@ typedef struct {
     Boolean suppress_redundant_ep_info;
     /* Whether the output should be in JSON format. */
     Boolean json_format;
+    /* Whether the output values of each entry should be tab separated. */
+    Boolean tsv_format;
     /* Whether tag matches can be made other than at the start of the tag. */
     Boolean tag_match_anywhere;
     /* Whether to match only games involving underpromotion. */

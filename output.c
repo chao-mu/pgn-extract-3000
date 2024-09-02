@@ -286,6 +286,9 @@ output_tag(TagName tag, char **Tags, FILE *outfp)
 
     if(is_suppressed_tag(tag)) {
     }
+    else if (Tags[tag] == NULL && GlobalState.tsv_format) {
+        fputs("?\t", outfp);
+    }
     else if ((is_STR(tag)) || (Tags[tag] != NULL)) {
         /* Must print STR elements and other non-NULL tags. */
         tag_string = select_tag_string(tag);
@@ -306,9 +309,14 @@ output_tag(TagName tag, char **Tags, FILE *outfp)
             if (GlobalState.json_format) {
                 fprintf(outfp, "\"%s\" : \"%s\",\n", tag_string, tag_value);
             }
+            else if (GlobalState.tsv_format) {
+                fprintf(outfp, "%s\t", tag_value);
+            }
             else {
                 fprintf(outfp, "[%s \"%s\"]\n", tag_string, tag_value);
             }
+        } else if (GlobalState.tsv_format) {
+            fputs("?\t", outfp);
         }
     }
 }
@@ -373,7 +381,7 @@ show_tags(FILE *outfp, char **Tags, int tags_length)
         }
     }
     /* Handle the remaining tags. */
-    if(! GlobalState.only_output_wanted_tags) {
+    if(! GlobalState.only_output_wanted_tags && !GlobalState.tsv_format) {
         for (tag_index = 0; tag_index < tags_length; tag_index++) {
             if (copy_of_tags[tag_index] != NULL) {
                 output_tag(tag_index, copy_of_tags, outfp);
@@ -381,7 +389,9 @@ show_tags(FILE *outfp, char **Tags, int tags_length)
         }
     }
     (void) free(copy_of_tags);
-    putc('\n', outfp);
+    if (!GlobalState.tsv_format) {
+        putc('\n', outfp);
+    }
 }
 
 /* Ensure that there is room for len more characters on the
@@ -390,7 +400,7 @@ show_tags(FILE *outfp, char **Tags, int tags_length)
 static void
 check_line_length(FILE *fp, size_t len)
 {
-    if ((line_length + len) > GlobalState.max_line_length) {
+    if ((line_length + len) > GlobalState.max_line_length && GlobalState.max_line_length != 0) {
         terminate_line(fp);
     }
 }
@@ -401,6 +411,10 @@ check_line_length(FILE *fp, size_t len)
 static void
 print_single_char(FILE *fp, char ch)
 {
+    if (GlobalState.max_line_length == 0) {
+        fputc(ch, fp);
+        return;
+    }
     check_line_length(fp, 1);
     output_line[line_length] = ch;
     line_length++;
@@ -410,6 +424,11 @@ print_single_char(FILE *fp, char ch)
 static void
 print_separator(FILE *fp)
 {
+    if (GlobalState.max_line_length == 0) {
+        fputc(' ', fp);
+        return;
+    }
+
     /* Lines shouldn't have trailing spaces, so ensure that there
      * will be room for at least one more character after the space.
      */
@@ -424,6 +443,11 @@ print_separator(FILE *fp)
 void
 terminate_line(FILE *fp)
 {
+    if (GlobalState.max_line_length == 0) {
+        fputc('\n', fp);
+        return;
+    }
+
     /* Delete any trailing space(s). */
     while (line_length >= 1 && output_line[line_length - 1] == ' ') {
         line_length--;
@@ -441,6 +465,10 @@ terminate_line(FILE *fp)
 void
 print_str(FILE *fp, const char *str)
 {
+    if (GlobalState.max_line_length == 0) {
+        fputs(str, fp);
+        return;
+    }
     size_t len = strlen(str);
 
     check_line_length(fp, len);
@@ -532,6 +560,7 @@ print_move_list(FILE *outputfile, unsigned move_number, Boolean white_to_move,
         if (GlobalState.json_format) {
             fputs("{ ", outputfile);
         }
+
         /* Reset print_move number if a variation was printed. */
         print_move_number = print_move(outputfile, move_number,
                 print_move_number,
@@ -882,6 +911,12 @@ print_move(FILE *outputfile, unsigned move_number, Boolean print_move_number,
             }            
         }
     }
+
+    // HACK: Numbers had no preceding spaces in tsv format
+    if (GlobalState.tsv_format) {
+        print_str(outputfile, " ");
+    }
+
     return something_printed;
 }
 
@@ -923,6 +958,12 @@ print_items_following_move(FILE *outputfile, const Move *move_details,
                             fputs(", ", outputfile);
                         }
                     }
+                    else if(GlobalState.tsv_format) {
+                        fprintf(outputfile, "%s", text->str);
+                        if(nags->next != NULL) {
+                            fputs(" ", outputfile);
+                        }
+                    }
                     else {
                         print_separator(outputfile);
                         print_str(outputfile, text->str);
@@ -947,6 +988,10 @@ print_items_following_move(FILE *outputfile, const Move *move_details,
             fprintf(outputfile, ", \"evaluation\" : \"%.2f\"", 
                     move_details->evaluation);
         } 
+        else if(GlobalState.tsv_format) {
+            fprintf(outputfile, "\t%.2f", 
+                    move_details->evaluation);
+        } 
         else {
             const char valueSpace[] = "-012456789.00";
             char *evaluation = (char *) malloc_or_die(sizeof (valueSpace));
@@ -969,6 +1014,11 @@ print_items_following_move(FILE *outputfile, const Move *move_details,
                         move_details->epd,
                         move_details->fen_suffix);
             }
+            else if(GlobalState.tsv_format) {
+                fprintf(outputfile, "\t%s\t%s", 
+                        move_details->epd,
+                        move_details->fen_suffix);
+            }
             else {
                 start_comment(outputfile);
                 print_space_separated_str(outputfile, move_details->epd);
@@ -984,6 +1034,9 @@ print_items_following_move(FILE *outputfile, const Move *move_details,
             fprintf(outputfile, ", \"HashCode\" : \"");
             fprintf(outputfile, "%016" PRIx64, move_details->zobrist);
             fprintf(outputfile, "\"");
+        }
+        else if(GlobalState.tsv_format) {
+            fprintf(outputfile, "\t%016" PRIx64, move_details->zobrist);
         }
         else {
             char *hashcode = (char *) malloc_or_die(HASH_64_BIT_SPACE + 1);
@@ -1133,7 +1186,7 @@ output_cm_comment(CommentList *comment, FILE *outputfile, unsigned indent)
                     line_length = indent_for_this_line + 2;
                 }
                 else {
-                    fputc(' ', outputfile);
+                    putc(' ', outputfile);
                     line_length++;
                 }
                 fprintf(outputfile, "%s", chunk);
@@ -1511,7 +1564,9 @@ print_algebraic_game(Game *current_game, FILE *outputfile,
             output_tag(SETUP_TAG, current_game->tags, outputfile);
             output_tag(FEN_TAG, current_game->tags, outputfile);
         }
-        putc('\n', outputfile);
+        if (!GlobalState.tsv_format) {
+            putc('\n', outputfile);
+        }
     }
     else if (GlobalState.tag_output_format == NO_TAGS) {
     }
@@ -1525,14 +1580,17 @@ print_algebraic_game(Game *current_game, FILE *outputfile,
             (current_game->prefix_comment != NULL)) {
         print_comment_list(outputfile,
                 current_game->prefix_comment);
-        terminate_line(outputfile);
-        putc('\n', outputfile);
+        if (!GlobalState.tsv_format) {
+            terminate_line(outputfile);
+            putc('\n', outputfile);
+        }
     }
     if (GlobalState.json_format) {
         fputs("\"Moves\":[", outputfile);
     }
     print_move_list(outputfile, move_number, white_to_move,
             current_game->moves, final_board);
+
     if (GlobalState.json_format) {
         fputs("]\n", outputfile);
     }
@@ -1553,7 +1611,9 @@ print_algebraic_game(Game *current_game, FILE *outputfile,
     }
     else {
         terminate_line(outputfile);
-        putc('\n', outputfile);
+        if (!GlobalState.tsv_format) {
+            putc('\n', outputfile);
+        }
     }
 }
 
