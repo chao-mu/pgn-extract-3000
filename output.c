@@ -1635,11 +1635,24 @@ print_EPD_move_list(Game *current_game, FILE *outputfile,
     if (initial_board != NULL) {
         char epd[FEN_SPACE];
         build_basic_EPD_string(initial_board, epd);
-        fprintf(outputfile, "%s %s\n", epd, game_comment);
+
+        if (GlobalState.tsv_format) {
+            fprintf(outputfile, "%s\t", epd);
+            show_tags(outputfile, current_game->tags, current_game->tags_length);
+            fputc('\n', outputfile);
+        } else {
+            fprintf(outputfile, "%s %s\n", epd, game_comment);
+        }
     }
     while (move != NULL) {
         if (move->epd != NULL) {
-            fprintf(outputfile, "%s %s\n", move->epd, game_comment);
+            if (GlobalState.tsv_format) {
+                fprintf(outputfile, "%s\t", move->epd);
+                show_tags(outputfile, current_game->tags, current_game->tags_length);
+                fputc('\n', outputfile);
+            } else {
+                fprintf(outputfile, "%s %s\n", move->epd, game_comment);
+            }
         }
         else {
             fprintf(GlobalState.logfile, "Internal error: Missing EPD\n");
