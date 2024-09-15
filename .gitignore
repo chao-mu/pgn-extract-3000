@@ -1,2 +1,4 @@
 *.o
 pgn-extract
+test/*.pgn
+test/*.txt
