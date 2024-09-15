@@ -40,11 +40,11 @@ OPTIMISE=-O3
 CFLAGS+=-c -pedantic -Wall -Wshadow -Wformat -Wpointer-arith \
 	-Wstrict-prototypes -Wmissing-prototypes -Wwrite-strings \
 	-Wsign-compare -Wimplicit-function-declaration $(DEBUGINFO) \
-	-I/usr/local/lib/ansi-include -std=c99 \
+	-I/usr/local/lib/ansi-include -std=c17 \
         $(CPPFLAGS) \
         $(OPTIMISE)
 	 
-CC=gcc
+CC=clang
 LIBS=-lm
 
 # AIX 3.2 Users might like to use these alternatives for CFLAGS and CC.
