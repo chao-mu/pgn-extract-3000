@@ -19,13 +19,13 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
+#include "lines.h"
+#include "bool.h"
+#include "mymalloc.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-#include "bool.h"
-#include "mymalloc.h"
-#include "lines.h"
 
 /* Define a character that may be used to comment a line in, e.g.
  * the variations files.
@@ -36,38 +36,26 @@
 /* Return TRUE if line contains a non-space character, but
  * is not a comment line.
  */
-Boolean
-non_blank_line(const char *line)
-{
-    Boolean blank = TRUE;
+Boolean non_blank_line(const char *line) {
+  Boolean blank = TRUE;
 
-    if (line != NULL) {
-        if (comment_line(line)) {
-            /* Comment lines count as blanks. */
+  if (line != NULL) {
+    if (comment_line(line)) {
+      /* Comment lines count as blanks. */
+    } else {
+      while (blank && (*line != '\0')) {
+        if (!isspace((int)*line)) {
+          blank = FALSE;
+        } else {
+          line++;
         }
-        else {
-            while (blank && (*line != '\0')) {
-                if (!isspace((int) *line)) {
-                    blank = FALSE;
-                }
-                else {
-                    line++;
-                }
-            }
-        }
+      }
     }
-    return !blank;
+  }
+  return !blank;
 }
 
-Boolean
-blank_line(const char *line)
-{
-    return !non_blank_line(line);
-}
+Boolean blank_line(const char *line) { return !non_blank_line(line); }
 
 /* Should the given line be regarded as a comment line? */
-Boolean
-comment_line(const char *line)
-{
-    return *line == COMMENT_CHAR;
-}
+Boolean comment_line(const char *line) { return *line == COMMENT_CHAR; }

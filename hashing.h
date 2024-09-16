@@ -26,6 +26,8 @@
 #ifndef HASHING_H
 #define HASHING_H
 
+#include "typedef.h"
+
 typedef struct HashLog {
     /* Store both the final position hash value and
      * the cumulative hash value for a game.

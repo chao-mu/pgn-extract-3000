@@ -19,34 +19,30 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
+#include "mymalloc.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "mymalloc.h"
 
 /* Allocate the required space or abort the program. */
-void *
-malloc_or_die(size_t nbytes)
-{
-    void *result;
+void *malloc_or_die(size_t nbytes) {
+  void *result;
 
-    result = malloc(nbytes);
-    if (result == NULL) {
-        perror("malloc or die");
-        abort();
-    }
-    return result;
+  result = malloc(nbytes);
+  if (result == NULL) {
+    perror("malloc or die");
+    abort();
+  }
+  return result;
 }
 
 /* Allocate the required space or abort the program. */
-void *
-realloc_or_die(void *space, size_t nbytes)
-{
-    void *result;
+void *realloc_or_die(void *space, size_t nbytes) {
+  void *result;
 
-    result = realloc(space, nbytes);
-    if (result == NULL) {
-        perror("realloc or die");
-        abort();
-    }
-    return result;
+  result = realloc(space, nbytes);
+  if (result == NULL) {
+    perror("realloc or die");
+    abort();
+  }
+  return result;
 }

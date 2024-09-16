@@ -24,15 +24,15 @@
 
 #include "bool.h"
 #include "defs.h"
-#include "typedef.h"
-#include "tokens.h"
-#include "taglist.h"
 #include "lex.h"
 #include "lines.h"
 #include "lists.h"
 #include "moves.h"
 #include "output.h"
 #include "taglines.h"
+#include "taglist.h"
+#include "tokens.h"
+#include "typedef.h"
 
 static FILE *yyin = NULL;
 
@@ -43,230 +43,208 @@ static FILE *yyin = NULL;
  * EOF before yywrap() is called.
  * Be careful to leave lex in the right state.
  */
-void
-read_tag_file(const char *TagFile, Boolean positive_match)
-{
-    yyin = fopen(TagFile, "r");
-    if (yyin != NULL) {
-        Boolean keep_reading = TRUE;
+void read_tag_file(const char *TagFile, Boolean positive_match) {
+  yyin = fopen(TagFile, "r");
+  if (yyin != NULL) {
+    Boolean keep_reading = TRUE;
 
-        while (keep_reading) {
-            char *line = next_input_line(yyin);
-            if (line != NULL) {
-                keep_reading = process_tag_line(TagFile, line, positive_match);
-            }
-            else {
-                keep_reading = FALSE;
-            }
-        }
-        (void) fclose(yyin);
-        /* Call yywrap in order to set up for the next (first) input file. */
-        (void) yywrap();
-        yyin = NULL;
+    while (keep_reading) {
+      char *line = next_input_line(yyin);
+      if (line != NULL) {
+        keep_reading = process_tag_line(TagFile, line, positive_match);
+      } else {
+        keep_reading = FALSE;
+      }
     }
-    else {
-        fprintf(GlobalState.logfile,
-                "Unable to open %s for reading.\n", TagFile);
-        exit(1);
-    }
+    (void)fclose(yyin);
+    /* Call yywrap in order to set up for the next (first) input file. */
+    (void)yywrap();
+    yyin = NULL;
+  } else {
+    fprintf(GlobalState.logfile, "Unable to open %s for reading.\n", TagFile);
+    exit(1);
+  }
 }
 
 /* Read the contents of a file that lists the
  * required output ordering for tags.
  */
-void
-read_tag_roster_file(const char *RosterFile)
-{
-    Boolean keep_reading = TRUE;
-    yyin = must_open_file(RosterFile, "r");
+void read_tag_roster_file(const char *RosterFile) {
+  Boolean keep_reading = TRUE;
+  yyin = must_open_file(RosterFile, "r");
 
-    while (keep_reading) {
-        char *line = next_input_line(yyin);
-        if (line != NULL) {
-            keep_reading = process_roster_line(line);
-        }
-        else {
-            keep_reading = FALSE;
-        }
+  while (keep_reading) {
+    char *line = next_input_line(yyin);
+    if (line != NULL) {
+      keep_reading = process_roster_line(line);
+    } else {
+      keep_reading = FALSE;
     }
-    (void) fclose(yyin);
-    /* Call yywrap in order to set up for the next (first) input file. */
-    (void) yywrap();
+  }
+  (void)fclose(yyin);
+  /* Call yywrap in order to set up for the next (first) input file. */
+  (void)yywrap();
 }
 
 /* Extract a tag/value pair from the given line.
  * Return TRUE if this was successful.
  */
-Boolean
-process_tag_line(const char *TagFile, char *line, Boolean positive_match)
-{
-    Boolean keep_reading = TRUE;
-    if (non_blank_line(line)) {
-        unsigned char *linep = (unsigned char *) line;
-        /* We should find a tag. */
-        LinePair resulting_line = gather_tag(line, linep);
-        TokenType tag_token;
+Boolean process_tag_line(const char *TagFile, char *line,
+                         Boolean positive_match) {
+  Boolean keep_reading = TRUE;
+  if (non_blank_line(line)) {
+    unsigned char *linep = (unsigned char *)line;
+    /* We should find a tag. */
+    LinePair resulting_line = gather_tag(line, linep);
+    TokenType tag_token;
 
-        /* Pick up where we are now. */
+    /* Pick up where we are now. */
+    line = resulting_line.line;
+    linep = resulting_line.linep;
+    tag_token = resulting_line.token;
+    if (tag_token != NO_TOKEN) {
+      /* Pick up which tag it was. */
+      int tag_index = yylval.tag_index;
+      /* Allow for an optional operator. */
+      TagOperator operator= NONE;
+
+      /* Skip whitespace. */
+      while (is_character_class(*linep, WHITESPACE)) {
+        linep++;
+      }
+      /* Allow for an optional operator. */
+      if (is_character_class(*linep, OPERATOR)) {
+        switch (*linep) {
+        case '<':
+          linep++;
+          if (*linep == '=') {
+            linep++;
+            operator= LESS_THAN_OR_EQUAL_TO;
+          } else if (*linep == '>') {
+            linep++;
+            operator= NOT_EQUAL_TO;
+          } else {
+            operator= LESS_THAN;
+          }
+          break;
+        case '>':
+          linep++;
+          if (*linep == '=') {
+            linep++;
+            operator= GREATER_THAN_OR_EQUAL_TO;
+          } else {
+            operator= GREATER_THAN;
+          }
+          break;
+        case '=':
+          linep++;
+          if (*linep == '~') {
+            operator= REGEX;
+            linep++;
+          } else {
+            operator= EQUAL_TO;
+          }
+          break;
+        default:
+          fprintf(GlobalState.logfile,
+                  "Internal error: unknown operator in %s\n", line);
+          linep++;
+          break;
+        }
+        /* Skip whitespace. */
+        while (is_character_class(*linep, WHITESPACE)) {
+          linep++;
+        }
+      }
+
+      if (is_character_class(*linep, DOUBLE_QUOTE)) {
+        /* A string, as expected. */
+        linep++;
+        resulting_line = gather_string(line, linep);
         line = resulting_line.line;
         linep = resulting_line.linep;
-        tag_token = resulting_line.token;
-        if (tag_token != NO_TOKEN) {
-            /* Pick up which tag it was. */
-            int tag_index = yylval.tag_index;
-            /* Allow for an optional operator. */
-            TagOperator operator = NONE;
-
+        if (tag_token == TAG) {
+          /* Treat FEN and FENPattern tags as special cases.
+           * Use the position they represent to indicate
+           * a positional match.
+           */
+          if (tag_index == FEN_TAG) {
+            add_fen_positional_match(yylval.token_string);
+            (void)free((void *)yylval.token_string);
+          } else if (tag_index == PSEUDO_FEN_PATTERN_TAG ||
+                     tag_index == PSEUDO_FEN_PATTERN_I_TAG) {
             /* Skip whitespace. */
             while (is_character_class(*linep, WHITESPACE)) {
-                linep++;
+              linep++;
             }
-            /* Allow for an optional operator. */
-            if (is_character_class(*linep, OPERATOR)) {
-                switch (*linep) {
-                    case '<':
-                        linep++;
-                        if (*linep == '=') {
-                            linep++;
-                            operator = LESS_THAN_OR_EQUAL_TO;
-                        }
-                        else if (*linep == '>') {
-                            linep++;
-                            operator = NOT_EQUAL_TO;
-                        }
-                        else {
-                            operator = LESS_THAN;
-                        }
-                        break;
-                    case '>':
-                        linep++;
-                        if (*linep == '=') {
-                            linep++;
-                            operator = GREATER_THAN_OR_EQUAL_TO;
-                        }
-                        else {
-                            operator = GREATER_THAN;
-                        }
-                        break;
-                    case '=':
-                        linep++;
-                        if (*linep == '~') {
-                            operator = REGEX;
-                            linep++;
-                        }
-                        else {
-                            operator = EQUAL_TO;
-                        }
-                        break;
-                    default:
-                        fprintf(GlobalState.logfile,
-                                "Internal error: unknown operator in %s\n", line);
-                        linep++;
-                        break;
-                }
-                /* Skip whitespace. */
-                while (is_character_class(*linep, WHITESPACE)) {
-                    linep++;
-                }
+            const char *label;
+            if (*linep != '\0') {
+              /* Treat the remainder of the line as a label. */
+              label = (const char *)linep;
+            } else {
+              label = NULL;
             }
-
-            if (is_character_class(*linep, DOUBLE_QUOTE)) {
-                /* A string, as expected. */
-                linep++;
-                resulting_line = gather_string(line, linep);
-                line = resulting_line.line;
-                linep = resulting_line.linep;
-                if (tag_token == TAG) {
-                    /* Treat FEN and FENPattern tags as special cases.
-                     * Use the position they represent to indicate
-                     * a positional match.
-                     */
-                    if (tag_index == FEN_TAG) {
-                        add_fen_positional_match(yylval.token_string);
-                        (void) free((void *) yylval.token_string);
-                    }
-                    else if (tag_index == PSEUDO_FEN_PATTERN_TAG ||
-                            tag_index == PSEUDO_FEN_PATTERN_I_TAG) {
-                        /* Skip whitespace. */
-                        while (is_character_class(*linep, WHITESPACE)) {
-                            linep++;
-                        }
-                        const char *label;
-                        if(*linep != '\0') {
-                            /* Treat the remainder of the line as a label. */
-                            label = (const char *) linep;
-                        }
-                        else {
-                            label = NULL;
-                        }
-                        /* Generate an inverted version as well if
-                         * it is PSEUDO_FEN_PATTERN_I_TAG.
-                         */
-                        add_fen_pattern_match(yylval.token_string, 
-                                tag_index == PSEUDO_FEN_PATTERN_I_TAG, label);
-                        (void) free((void *) yylval.token_string);
-                    }
-                    else {
-                        if(positive_match) {
-                            add_tag_to_positive_list(tag_index, yylval.token_string, operator);
-                        }
-                        else {
-                            add_tag_to_negative_list(tag_index, yylval.token_string, operator);
-                        }
-                        (void) free((void *) yylval.token_string);
-                    }
-                }
-                else {
-                    if (!GlobalState.skipping_current_game) {
-                        fprintf(GlobalState.logfile,
-                                "File %s: unrecognised tag name %s\n",
-                                TagFile, line);
-                    }
-                    (void) free((void *) yylval.token_string);
-                }
+            /* Generate an inverted version as well if
+             * it is PSEUDO_FEN_PATTERN_I_TAG.
+             */
+            add_fen_pattern_match(yylval.token_string,
+                                  tag_index == PSEUDO_FEN_PATTERN_I_TAG, label);
+            (void)free((void *)yylval.token_string);
+          } else {
+            if (positive_match) {
+              add_tag_to_positive_list(tag_index,
+                                       yylval.token_string, operator);
+            } else {
+              add_tag_to_negative_list(tag_index,
+                                       yylval.token_string, operator);
             }
-            else {
-                if (!GlobalState.skipping_current_game) {
-                    fprintf(GlobalState.logfile,
-                            "File %s: missing quoted tag string in %s at %s\n",
-                            TagFile, line, linep);
-                }
-            }
+            (void)free((void *)yylval.token_string);
+          }
+        } else {
+          if (!GlobalState.skipping_current_game) {
+            fprintf(GlobalState.logfile, "File %s: unrecognised tag name %s\n",
+                    TagFile, line);
+          }
+          (void)free((void *)yylval.token_string);
         }
-        else {
-            /* Terminate the reading, as we have run out of tags. */
-            keep_reading = FALSE;
+      } else {
+        if (!GlobalState.skipping_current_game) {
+          fprintf(GlobalState.logfile,
+                  "File %s: missing quoted tag string in %s at %s\n", TagFile,
+                  line, linep);
         }
+      }
+    } else {
+      /* Terminate the reading, as we have run out of tags. */
+      keep_reading = FALSE;
     }
-    return keep_reading;
+  }
+  return keep_reading;
 }
 
 /* Extract a tag name from the given line.
  * Return TRUE if this was successful.
  */
-Boolean
-process_roster_line(char *line)
-{
-    Boolean keep_reading = TRUE;
-    if (non_blank_line(line)) {
-        unsigned char *linep = (unsigned char *) line;
-        /* We should find a tag. */
-        LinePair resulting_line = gather_tag(line, linep);
-        TokenType tag_token;
+Boolean process_roster_line(char *line) {
+  Boolean keep_reading = TRUE;
+  if (non_blank_line(line)) {
+    unsigned char *linep = (unsigned char *)line;
+    /* We should find a tag. */
+    LinePair resulting_line = gather_tag(line, linep);
+    TokenType tag_token;
 
-        /* Pick up where we are now. */
-        line = resulting_line.line;
-        linep = resulting_line.linep;
-        tag_token = resulting_line.token;
-        if (tag_token != NO_TOKEN) {
-            /* Pick up which tag it was. */
-            int tag_index = yylval.tag_index;
-            add_to_output_tag_order((TagName) tag_index);
-        }
-        else {
-            /* Terminate the reading, as we have run out of tags. */
-            keep_reading = FALSE;
-        }
+    /* Pick up where we are now. */
+    line = resulting_line.line;
+    linep = resulting_line.linep;
+    tag_token = resulting_line.token;
+    if (tag_token != NO_TOKEN) {
+      /* Pick up which tag it was. */
+      int tag_index = yylval.tag_index;
+      add_to_output_tag_order((TagName)tag_index);
+    } else {
+      /* Terminate the reading, as we have run out of tags. */
+      keep_reading = FALSE;
     }
-    return keep_reading;
+  }
+  return keep_reading;
 }

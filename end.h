@@ -22,6 +22,9 @@
 #ifndef END_H
 #define END_H
 
+#include "bool.h"
+#include "typedef.h"
+
 /* Define a type to represent classes of occurrance. */
 typedef enum {
     EXACTLY, NUM_OR_MORE, NUM_OR_LESS,

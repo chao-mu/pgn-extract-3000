@@ -20,25 +20,30 @@
  *
  */
 
-        /* Type definitions required by multiple files. */
+/* Type definitions required by multiple files. */
 
-    /* Define a type to represent different output formats.
-     * Currently represented are:
-     *     SOURCE: the original source notation.
-     *           SAN: SAN.
-     *           CM: Chess Master input format.
-     *     LALG: Long-algebraic, e.g. e2e4.
-     *     HALG: Hyphenated long-algebraic, e.g. e2-e4.
-     *     ELALG: Enhanced long-algebraic. Includes piece names, e.g. Ng1f3,
-     *            and en-passant notation.
-     *     XLALG: Enhanced long-algebraic. Includes piece names, e.g. Ng1f3,
-     *            en-passant notation and either - or x between squares for
-     *            non-capture and capture moves respectively.
-     *     XOLALG: As XLALG but with O-O and O-O-O for castling moves.
-     *     UCI: UCI-compatible format - actually LALG.
-     */
+/* Define a type to represent different output formats.
+ * Currently represented are:
+ *     SOURCE: the original source notation.
+ *           SAN: SAN.
+ *           CM: Chess Master input format.
+ *     LALG: Long-algebraic, e.g. e2e4.
+ *     HALG: Hyphenated long-algebraic, e.g. e2-e4.
+ *     ELALG: Enhanced long-algebraic. Includes piece names, e.g. Ng1f3,
+ *            and en-passant notation.
+ *     XLALG: Enhanced long-algebraic. Includes piece names, e.g. Ng1f3,
+ *            en-passant notation and either - or x between squares for
+ *            non-capture and capture moves respectively.
+ *     XOLALG: As XLALG but with O-O and O-O-O for castling moves.
+ *     UCI: UCI-compatible format - actually LALG.
+ */
 #ifndef TYPEDEF_H
 #define TYPEDEF_H
+
+#include <stdio.h>
+
+#include "bool.h"
+#include "defs.h"
 
 typedef enum { SOURCE, SAN, EPD, FEN, CM, LALG, HALG, ELALG, XLALG, XOLALG, UCI } OutputFormat;
 

@@ -22,6 +22,9 @@
 #ifndef OUTPUT_H
 #define OUTPUT_H
 
+#include "typedef.h"
+#include "taglist.h"
+
 void format_game(Game *current_game,FILE *outputfile);
 void print_str(FILE *fp, const char *str);
 void terminate_line(FILE *fp);
@@ -34,5 +37,5 @@ void add_total_plycount(const Game *game, Boolean count_variations);
 /* Provide enough static space to build FEN string. */
 #define FEN_SPACE 100
 
-#endif	// OUTPUT_H
+#endif // OUTPUT_H
 

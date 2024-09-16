@@ -22,6 +22,8 @@
 #ifndef MAP_H
 #define MAP_H
 
+#include "typedef.h"
+
 void init_hashtab(void);
 Boolean determine_move_details(Colour colour,Move *move_details, Board *board);
 HashCode hash_lookup(Col col, Rank rank, Piece piece, Colour colour);

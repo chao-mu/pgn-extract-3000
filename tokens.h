@@ -25,6 +25,8 @@
 #ifndef TOKENS_H
 #define TOKENS_H
 
+#include "typedef.h"
+
 typedef enum {
     /* The first section of tokens contains those that are
      * returned to the parser as complete token identifications.

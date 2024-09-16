@@ -22,6 +22,8 @@
 #ifndef GRAMMAR_H
 #define GRAMMAR_H
 
+#include "typedef.h"
+
 int yyparse(SourceFileType file_type);
 void free_string_list(StringList *list);
 void init_game_header(void);

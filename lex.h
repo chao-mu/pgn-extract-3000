@@ -26,6 +26,9 @@
 #ifndef LEX_H
 #define LEX_H
 
+#include "tokens.h"
+#include "taglist.h"
+
 typedef struct{
     /* Start of the malloc'ed line. */
     char *line;

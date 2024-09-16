@@ -23,6 +23,8 @@
 #ifndef ECO_H
 #define ECO_H
 
+#include "typedef.h"
+
 typedef struct EcoLog {
     HashCode required_hash_value;
     /* cumulative_hash_value is used to disambiguate clashing

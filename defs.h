@@ -26,6 +26,7 @@
  */
 #ifndef DEFS_H
 #define DEFS_H
+
 #include <stdint.h>
 
 typedef enum { BLACK, WHITE } Colour;

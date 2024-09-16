@@ -22,6 +22,8 @@
 #ifndef APPLY_H
 #define APPLY_H
 
+#include "typedef.h"
+
 void add_fen_castling(Game *game_details, Board *board);
 Boolean apply_move_list(Game *game_details,unsigned *plycount, unsigned max_depth, Boolean check_for_a_match);
 Boolean apply_move(Move *move_details, Board *board);
@@ -42,5 +44,4 @@ Boolean save_polyglot_hashcode(const char *value);
 void set_output_piece_characters(const char *letters);
 void store_hash_value(Move *move_details,const char *fen);
 
-#endif	// APPLY_H
-
+#endif // APPLY_H

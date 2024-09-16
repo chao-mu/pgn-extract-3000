@@ -25,6 +25,8 @@
 #ifndef LISTS_H
 #define LISTS_H
 
+#include "bool.h"
+
 #define INIT_LIST_SPACE 10
 #define MORE_LIST_SPACE 5
 

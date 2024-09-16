@@ -22,6 +22,9 @@
 #ifndef FENMATCHER_H
 #define FENMATCHER_H
 
+#include "bool.h"
+#include "typedef.h"
+
 void add_fen_pattern(const char *fen_pattern, Boolean add_reverse, const char *label);
 const char *pattern_match_board(const Board *board);
 

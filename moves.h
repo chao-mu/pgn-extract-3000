@@ -22,6 +22,8 @@
 #ifndef MOVES_H
 #define MOVES_H
 
+#include "typedef.h"
+
 void add_positional_variations_from_file(FILE *fpin);
 void add_positional_variation_from_line(char *line);
 void add_textual_variations_from_file(FILE *fpin);
