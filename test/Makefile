@@ -62,19 +62,19 @@ clean:
 #     - Resulting output should be that the game input on standard input is
 #       formatted as PGN on standard output.
 #     - Expected output: 
-#       Contents of fools-mate.pgn on standard output.
+#       Contents of fools-mate.pgn in no-flags-1.txt.
 no-flags-1:
 	echo "test: No input file."
-	$(PGN_EXTRACT) --quiet < $(INPUT)$(SEP)fools-mate.txt
+	$(PGN_EXTRACT) --quiet < $(INPUT)$(SEP)fools-mate.txt > $@.txt
 
 # No flags:
 #     + Single input file
 #     - Input file(s): fools-mate.txt
 #     - Resulting output should be the input formatted as PGN on standard output.
-#     - Expected output: Contents of fools-mate.pgn should appear on standard output.
+#     - Expected output: Contents of fools-mate.pgn should appear in no-flags-2.txt.
 no-flags-2:
 	echo "test: No flags."
-	$(PGN_EXTRACT) --quiet $(INPUT)$(SEP)fools-mate.txt
+	$(PGN_EXTRACT) --quiet $(INPUT)$(SEP)fools-mate.txt > $@.txt
 
 # -7 $(SEP) --seven
 #     + Input file with games having tags additional to the seven tag roster.
@@ -268,15 +268,10 @@ test-FF:
 # 
 # -h $(SEP) -? $(SEP) --help
 #     + No input required.
-#     - Input file(s): N$(SEP)A
-#     - Resulting output should be a description of how to use pgn-extract
-#     - Expected output: N$(SEP)A
-# Also:
-# 	..$(SEP)pgn-extract -?
-# 	..$(SEP)pgn-extract --help
+#     - Resulting output should be a description of how to use pgn-extract stored in test-h.txt
 test-h:
 	echo "test-h:"
-	-$(PGN_EXTRACT) -h
+	-$(PGN_EXTRACT) -h 2> $@.txt
 
 # -l
 #     + Input file containing games.
