@@ -21,7 +21,7 @@
 
 #include "argsfile.h"
 #include "apply.h"
-#include "bool.h"
+
 #include "defs.h"
 #include "eco.h"
 #include "end.h"
@@ -63,7 +63,7 @@ static const int argument_prefix_len = sizeof(argument_prefix) - 1;
 static ArgType classify_arg(const char *line);
 static game_number *extract_game_number_list(const char *number_list);
 static void read_args_file(const char *infile);
-static Boolean set_move_bounds(char bounds_or_ply, char limit, unsigned number);
+static bool set_move_bounds(char bounds_or_ply, char limit, unsigned number);
 
 #if defined(__unix__) || defined(__linux__) || defined(__APPLE__)
 int strcasecmp(const char *, const char *);
@@ -82,8 +82,8 @@ static int stringcompare(const char *s1, const char *s2) {
 
 #if 0
 
-/* Return TRUE if str contains prefix as a prefix, FALSE otherwise. */
-static Boolean
+/* Return true if str contains prefix as a prefix, false otherwise. */
+static bool
 prefixMatch(const char *prefix, const char *str)
 {
     size_t prefixLen = strlen(prefix);
@@ -95,7 +95,7 @@ prefixMatch(const char *prefix, const char *str)
 #endif
     }
     else {
-        return FALSE;
+        return false;
     }
 }
 #endif
@@ -354,7 +354,7 @@ static void read_args_file(const char *infile) {
             add_positional_variation_from_line(line);
             break;
           case TAGS_ARGUMENT:
-            process_tag_line(infile, line, TRUE);
+            process_tag_line(infile, line, true);
             break;
           case TAG_ROSTER_ARGUMENT:
             process_roster_line(line);
@@ -362,7 +362,7 @@ static void read_args_file(const char *infile) {
           case ENDINGS_ARGUMENT:
           case ENDINGS_COLOURED_ARGUMENT:
             process_material_description(line, linetype == ENDINGS_ARGUMENT,
-                                         FALSE);
+                                         false);
             (void)free((void *)line);
             break;
           default:
@@ -619,7 +619,7 @@ void process_argument(char arg_letter, const char *associated_value) {
     }
     break;
   case USE_ECO_FILE_ARGUMENT:
-    GlobalState.add_ECO = TRUE;
+    GlobalState.add_ECO = true;
     if (*filename != '\0') {
       GlobalState.eco_file = copy_string(filename);
     } else if ((filename = getenv("ECO_FILE")) != NULL) {
@@ -691,7 +691,7 @@ void process_argument(char arg_letter, const char *associated_value) {
     /* Equal by default. */
     char which = 'e';
     unsigned number;
-    Boolean Ok = TRUE;
+    bool Ok = true;
     const char *bound = associated_value;
 
     switch (*bound) {
@@ -705,7 +705,7 @@ void process_argument(char arg_letter, const char *associated_value) {
       if (!isdigit((int)*bound)) {
         fprintf(GlobalState.logfile, "-%c must be followed by e, l, or u.\n",
                 arg_letter);
-        Ok = FALSE;
+        Ok = false;
       }
       break;
     }
@@ -715,7 +715,7 @@ void process_argument(char arg_letter, const char *associated_value) {
       fprintf(GlobalState.logfile,
               "-%c should be in the form -%c[elu]number.\n", arg_letter,
               arg_letter);
-      Ok = FALSE;
+      Ok = false;
     }
     if (!Ok) {
       exit(1);
@@ -779,7 +779,7 @@ void process_argument(char arg_letter, const char *associated_value) {
     break;
   case TAG_EXTRACTION_ARGUMENT:
     /* A single tag extraction criterion. */
-    extract_tag_argument(associated_value, TRUE);
+    extract_tag_argument(associated_value, true);
     break;
   case LINE_WIDTH_ARGUMENT: { /* Specify an output line width. */
     unsigned length;
@@ -807,11 +807,11 @@ void process_argument(char arg_letter, const char *associated_value) {
          * This is actually LALG but involves adjusting a lot of
          * the other statuses, too.
          */
-        GlobalState.keep_NAGs = FALSE;
-        GlobalState.keep_comments = FALSE;
-        GlobalState.keep_move_numbers = FALSE;
-        GlobalState.keep_checks = FALSE;
-        GlobalState.keep_variations = FALSE;
+        GlobalState.keep_NAGs = false;
+        GlobalState.keep_comments = false;
+        GlobalState.keep_move_numbers = false;
+        GlobalState.keep_checks = false;
+        GlobalState.keep_variations = false;
         /* @@@ Warning: arbitrary value. */
         set_output_line_length(5000);
       }
@@ -836,13 +836,13 @@ void process_argument(char arg_letter, const char *associated_value) {
               DONT_KEEP_COMMENTS_ARGUMENT);
       exit(1);
     } else {
-      GlobalState.keep_comments = FALSE;
+      GlobalState.keep_comments = false;
     }
     break;
   case DONT_KEEP_DUPLICATES_ARGUMENT:
     /* Make sure that this doesn't clash with -d. */
     if (GlobalState.duplicate_file == NULL) {
-      GlobalState.suppress_duplicates = TRUE;
+      GlobalState.suppress_duplicates = true;
     } else {
       fprintf(GlobalState.logfile, "-%c clashes with -%c flag.\n",
               DONT_KEEP_DUPLICATES_ARGUMENT, DUPLICATES_FILE_ARGUMENT);
@@ -850,10 +850,10 @@ void process_argument(char arg_letter, const char *associated_value) {
     }
     break;
   case DONT_MATCH_PERMUTATIONS_ARGUMENT:
-    GlobalState.match_permutations = FALSE;
+    GlobalState.match_permutations = false;
     break;
   case DONT_KEEP_NAGS_ARGUMENT:
-    GlobalState.keep_NAGs = FALSE;
+    GlobalState.keep_NAGs = false;
     break;
   case OUTPUT_FEN_STRING_ARGUMENT:
     /* Output a FEN string at one or more positions.
@@ -870,14 +870,14 @@ void process_argument(char arg_letter, const char *associated_value) {
     }
     if (GlobalState.add_FEN_comments) {
       /* Already implied. */
-      GlobalState.output_FEN_string = FALSE;
+      GlobalState.output_FEN_string = false;
     } else {
-      GlobalState.output_FEN_string = TRUE;
+      GlobalState.output_FEN_string = true;
     }
     break;
   case CHECK_ONLY_ARGUMENT:
     /* Report errors, but don't convert. */
-    GlobalState.check_only = TRUE;
+    GlobalState.check_only = true;
     break;
   case KEEP_SILENT_ARGUMENT:
     /* Turn off progress reporting
@@ -887,7 +887,7 @@ void process_argument(char arg_letter, const char *associated_value) {
     break;
   case USE_SOUNDEX_ARGUMENT:
     /* Use soundex matches for player tags. */
-    GlobalState.use_soundex = TRUE;
+    GlobalState.use_soundex = true;
     break;
   case MATCH_CHECKMATE_ARGUMENT:
     /* Match only games that end in checkmate. */
@@ -900,15 +900,15 @@ void process_argument(char arg_letter, const char *associated_value) {
               arg_letter);
       exit(1);
     } else {
-      GlobalState.match_only_checkmate = TRUE;
+      GlobalState.match_only_checkmate = true;
     }
     break;
   case SUPPRESS_ORIGINALS_ARGUMENT:
-    GlobalState.suppress_originals = TRUE;
+    GlobalState.suppress_originals = true;
     break;
   case DONT_KEEP_VARIATIONS_ARGUMENT:
     if (!GlobalState.split_variants) {
-      GlobalState.keep_variations = FALSE;
+      GlobalState.keep_variations = false;
     } else {
       fprintf(GlobalState.logfile,
               "-%c clashes with the --splitvariants flag.\n", arg_letter);
@@ -916,12 +916,12 @@ void process_argument(char arg_letter, const char *associated_value) {
     }
     break;
   case USE_VIRTUAL_HASH_TABLE_ARGUMENT:
-    GlobalState.use_virtual_hash_table = TRUE;
+    GlobalState.use_virtual_hash_table = true;
     break;
 
   case TAGS_ARGUMENT:
     if (*filename != '\0') {
-      read_tag_file(filename, TRUE);
+      read_tag_file(filename, true);
     }
     break;
   case TAG_ROSTER_ARGUMENT:
@@ -956,7 +956,7 @@ void process_argument(char arg_letter, const char *associated_value) {
     break;
   case HASHCODE_MATCH_ARGUMENT:
     if (save_polyglot_hashcode(associated_value)) {
-      GlobalState.positional_variations = TRUE;
+      GlobalState.positional_variations = true;
     } else {
       fprintf(
           GlobalState.logfile,
@@ -979,19 +979,19 @@ void process_argument(char arg_letter, const char *associated_value) {
 int process_long_form_argument(const char *argument,
                                const char *associated_value) {
   if (stringcompare(argument, "addfencastling") == 0) {
-    GlobalState.add_fen_castling = TRUE;
+    GlobalState.add_fen_castling = true;
     return 1;
   } else if (stringcompare(argument, "addhashcode") == 0) {
-    GlobalState.add_hashcode_tag = TRUE;
+    GlobalState.add_hashcode_tag = true;
     return 1;
   } else if (stringcompare(argument, "addlabeltag") == 0) {
-    GlobalState.add_matchlabel_tag = TRUE;
+    GlobalState.add_matchlabel_tag = true;
     return 1;
   } else if (stringcompare(argument, "addmatchtag") == 0) {
-    GlobalState.add_match_tag = TRUE;
+    GlobalState.add_match_tag = true;
     return 1;
   } else if (stringcompare(argument, "allownullmoves") == 0) {
-    GlobalState.allow_null_moves = TRUE;
+    GlobalState.allow_null_moves = true;
     return 1;
   } else if (stringcompare(argument, "append") == 0) {
     process_argument(APPEND_TO_OUTPUT_FILE_ARGUMENT, associated_value);
@@ -1017,14 +1017,14 @@ int process_long_form_argument(const char *argument,
               DONT_KEEP_COMMENTS_ARGUMENT);
       exit(1);
     } else {
-      GlobalState.keep_only_commented_games = TRUE;
+      GlobalState.keep_only_commented_games = true;
     }
     return 1;
   } else if (stringcompare(argument, "commentlines") == 0) {
-    GlobalState.separate_comment_lines = TRUE;
+    GlobalState.separate_comment_lines = true;
     return 1;
   } else if (stringcompare(argument, "deletesamesetup") == 0) {
-    GlobalState.delete_same_setup = TRUE;
+    GlobalState.delete_same_setup = true;
     return 1;
   } else if (stringcompare(argument, "detag") == 0) {
     /* Save the tag to be dropped. */
@@ -1063,14 +1063,14 @@ int process_long_form_argument(const char *argument,
     return 2;
   } else if (stringcompare(argument, "evaluation") == 0) {
     /* Output an evaluation is required with each move. */
-    GlobalState.output_evaluation = TRUE;
+    GlobalState.output_evaluation = true;
     return 1;
   } else if (stringcompare(argument, "fencomments") == 0) {
     if (GlobalState.FEN_comment_pattern == NULL) {
       /* Output a FEN comment after each move. */
-      GlobalState.add_FEN_comments = TRUE;
+      GlobalState.add_FEN_comments = true;
       /* Turn off any separate setting of output_FEN_comment. */
-      GlobalState.output_FEN_string = FALSE;
+      GlobalState.output_FEN_string = false;
     } else {
       fprintf(GlobalState.logfile, "--%s conflicts with -%cpattern", argument,
               OUTPUT_FEN_STRING_ARGUMENT);
@@ -1078,8 +1078,8 @@ int process_long_form_argument(const char *argument,
     return 1;
   } else if (stringcompare(argument, "fenpattern") == 0) {
     if (*associated_value != '\0') {
-      add_fen_pattern(associated_value, FALSE, "");
-      GlobalState.positional_variations = TRUE;
+      add_fen_pattern(associated_value, false, "");
+      GlobalState.positional_variations = true;
     } else {
       fprintf(GlobalState.logfile, "--%s requires a pattern following it.\n",
               argument);
@@ -1088,8 +1088,8 @@ int process_long_form_argument(const char *argument,
     return 2;
   } else if (stringcompare(argument, "fenpatterni") == 0) {
     if (*associated_value != '\0') {
-      add_fen_pattern(associated_value, TRUE, "");
-      GlobalState.positional_variations = TRUE;
+      add_fen_pattern(associated_value, true, "");
+      GlobalState.positional_variations = true;
     } else {
       fprintf(GlobalState.logfile, "--%s requires a pattern following it.\n",
               argument);
@@ -1131,17 +1131,17 @@ int process_long_form_argument(const char *argument,
     }
     return 2;
   } else if (stringcompare(argument, "fixresulttags") == 0) {
-    GlobalState.fix_result_tags = TRUE;
+    GlobalState.fix_result_tags = true;
     return 1;
   } else if (stringcompare(argument, "fixtagstrings") == 0) {
-    GlobalState.fix_tag_strings = TRUE;
+    GlobalState.fix_tag_strings = true;
     return 1;
   } else if (stringcompare(argument, "fuzzydepth") == 0) {
     /* Extract the depth. */
     unsigned depth = 0;
 
     if (sscanf(associated_value, "%u", &depth) == 1) {
-      GlobalState.fuzzy_match_duplicates = TRUE;
+      GlobalState.fuzzy_match_duplicates = true;
       GlobalState.fuzzy_match_depth = depth;
     } else {
       fprintf(GlobalState.logfile,
@@ -1151,7 +1151,7 @@ int process_long_form_argument(const char *argument,
     return 2;
   } else if (stringcompare(argument, "hashcomments") == 0) {
     /* Output a hashcode comment after each move. */
-    GlobalState.add_hashcode_comments = TRUE;
+    GlobalState.add_hashcode_comments = true;
     return 1;
   } else if (stringcompare(argument, "help") == 0) {
     process_argument(HELP_ARGUMENT, "");
@@ -1166,20 +1166,20 @@ int process_long_form_argument(const char *argument,
               argument);
       exit(1);
     } else {
-      GlobalState.match_only_insufficient_material = TRUE;
+      GlobalState.match_only_insufficient_material = true;
     }
     return 1;
   } else if (stringcompare(argument, "json") == 0) {
-    GlobalState.json_format = TRUE;
+    GlobalState.json_format = true;
     return 1;
   } else if (stringcompare(argument, "tsv") == 0) {
-    GlobalState.tsv_format = TRUE;
+    GlobalState.tsv_format = true;
     return 1;
   } else if (stringcompare(argument, "keepbroken") == 0) {
-    GlobalState.keep_broken_games = TRUE;
+    GlobalState.keep_broken_games = true;
     return 1;
   } else if (stringcompare(argument, "lichesscommentfix") == 0) {
-    GlobalState.lichess_comment_fix = TRUE;
+    GlobalState.lichess_comment_fix = true;
     return 1;
   } else if (stringcompare(argument, "linelength") == 0) {
     process_argument(LINE_WIDTH_ARGUMENT, associated_value);
@@ -1196,7 +1196,7 @@ int process_long_form_argument(const char *argument,
     return 2;
   } else if (stringcompare(argument, "markmatches") == 0) {
     if (*associated_value != '\0') {
-      GlobalState.add_position_match_comments = TRUE;
+      GlobalState.add_position_match_comments = true;
       GlobalState.position_match_comment = copy_string(associated_value);
     } else {
       fprintf(GlobalState.logfile,
@@ -1232,7 +1232,7 @@ int process_long_form_argument(const char *argument,
     return 2;
   } else if (stringcompare(argument, "materialy") == 0) {
     if (*associated_value != '\0') {
-      (void)process_material_description(associated_value, FALSE, FALSE);
+      (void)process_material_description(associated_value, false, false);
     } else {
       fprintf(GlobalState.logfile,
               "--%s requires a string of material following it.\n", argument);
@@ -1241,7 +1241,7 @@ int process_long_form_argument(const char *argument,
     return 2;
   } else if (stringcompare(argument, "materialz") == 0) {
     if (*associated_value != '\0') {
-      (void)process_material_description(associated_value, TRUE, FALSE);
+      (void)process_material_description(associated_value, true, false);
     } else {
       fprintf(GlobalState.logfile,
               "--%s requires a string of material following it.\n", argument);
@@ -1316,13 +1316,13 @@ int process_long_form_argument(const char *argument,
     }
     return 2;
   } else if (stringcompare(argument, "nestedcomments") == 0) {
-    GlobalState.allow_nested_comments = TRUE;
+    GlobalState.allow_nested_comments = true;
     return 1;
   } else if (stringcompare(argument, "nobadresults") == 0) {
-    GlobalState.reject_inconsistent_results = TRUE;
+    GlobalState.reject_inconsistent_results = true;
     return 1;
   } else if (stringcompare(argument, "nochecks") == 0) {
-    GlobalState.keep_checks = FALSE;
+    GlobalState.keep_checks = false;
     return 1;
   } else if (stringcompare(argument, "nocomments") == 0) {
     process_argument(DONT_KEEP_COMMENTS_ARGUMENT, "");
@@ -1331,10 +1331,10 @@ int process_long_form_argument(const char *argument,
     process_argument(DONT_KEEP_DUPLICATES_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "nofauxep") == 0) {
-    GlobalState.suppress_redundant_ep_info = TRUE;
+    GlobalState.suppress_redundant_ep_info = true;
     return 1;
   } else if (stringcompare(argument, "nomovenumbers") == 0) {
-    GlobalState.keep_move_numbers = FALSE;
+    GlobalState.keep_move_numbers = false;
     return 1;
   } else if (stringcompare(argument, "nonags") == 0) {
     process_argument(DONT_KEEP_NAGS_ARGUMENT, "");
@@ -1348,7 +1348,7 @@ int process_long_form_argument(const char *argument,
     GlobalState.setup_status = NO_SETUP_TAG;
     return 1;
   } else if (stringcompare(argument, "noresults") == 0) {
-    GlobalState.keep_results = FALSE;
+    GlobalState.keep_results = false;
     return 1;
   } else if (stringcompare(argument, "notags") == 0) {
     if (GlobalState.tag_output_format == ALL_TAGS ||
@@ -1378,7 +1378,7 @@ int process_long_form_argument(const char *argument,
     process_argument(WRITE_TO_OUTPUT_FILE_ARGUMENT, associated_value);
     return 2;
   } else if (stringcompare(argument, "plycount") == 0) {
-    GlobalState.output_plycount = TRUE;
+    GlobalState.output_plycount = true;
     return 1;
   } else if (stringcompare(argument, "plylimit") == 0) {
     int limit = 0;
@@ -1484,7 +1484,7 @@ int process_long_form_argument(const char *argument,
     return 2;
   } else if (stringcompare(argument, "splitvariants") == 0) {
     if (GlobalState.keep_variations) {
-      GlobalState.split_variants = TRUE;
+      GlobalState.split_variants = true;
       if (associated_value != NULL) {
         unsigned limit;
         if (sscanf(associated_value, "%u", &limit) == 1) {
@@ -1512,7 +1512,7 @@ int process_long_form_argument(const char *argument,
               argument);
       exit(1);
     } else {
-      GlobalState.match_only_stalemate = TRUE;
+      GlobalState.match_only_stalemate = true;
     }
     return 1;
   } else if (stringcompare(argument, "startply") == 0) {
@@ -1558,16 +1558,16 @@ int process_long_form_argument(const char *argument,
     }
     return 2;
   } else if (stringcompare(argument, "suppressmatched") == 0) {
-    GlobalState.suppress_matched = TRUE;
+    GlobalState.suppress_matched = true;
     return 1;
   } else if (stringcompare(argument, "tagsubstr") == 0) {
-    GlobalState.tag_match_anywhere = TRUE;
+    GlobalState.tag_match_anywhere = true;
     return 1;
   } else if (stringcompare(argument, "totalplycount") == 0) {
-    GlobalState.output_total_plycount = TRUE;
+    GlobalState.output_total_plycount = true;
     return 1;
   } else if (stringcompare(argument, "underpromotion") == 0) {
-    GlobalState.match_underpromotion = TRUE;
+    GlobalState.match_underpromotion = true;
     return 1;
   } else if (stringcompare(argument, "version") == 0) {
     fprintf(GlobalState.logfile, "pgn-extract %s\n", CURRENT_VERSION);
@@ -1588,7 +1588,7 @@ int process_long_form_argument(const char *argument,
               SEVEN_TAG_ROSTER_ARGUMENT);
       exit(1);
     }
-    GlobalState.only_output_wanted_tags = TRUE;
+    GlobalState.only_output_wanted_tags = true;
     return 1;
   } else {
     fprintf(GlobalState.logfile, "Unrecognised long-form argument: --%s\n",
@@ -1605,7 +1605,7 @@ int process_long_form_argument(const char *argument,
  */
 static game_number *extract_game_number_list(const char *number_list) {
   char *csv = copy_string(number_list);
-  Boolean ok = TRUE;
+  bool ok = true;
   game_number *head = NULL, *tail = NULL;
   const char *token = strtok(csv, ",");
   unsigned long last_number = 0;
@@ -1616,20 +1616,20 @@ static game_number *extract_game_number_list(const char *number_list) {
         if (min > last_number && min <= max) {
           last_number = max;
         } else {
-          ok = FALSE;
+          ok = false;
         }
       } else {
-        ok = FALSE;
+        ok = false;
       }
     } else if (sscanf(token, "%lu", &min) == 1) {
       if (min > last_number) {
         max = min;
         last_number = max;
       } else {
-        ok = FALSE;
+        ok = false;
       }
     } else {
-      ok = FALSE;
+      ok = false;
     }
     if (ok) {
       game_number *list_item = (game_number *)malloc_or_die(sizeof(*list_item));
@@ -1666,44 +1666,43 @@ static game_number *extract_game_number_list(const char *number_list) {
 /* Set the lower and/or upper bounds limits.
  * which must be one of l/e/u
  */
-static Boolean set_move_bounds(char bounds_or_ply, char limit,
-                               unsigned number) {
-  Boolean Ok;
-  GlobalState.check_move_bounds = TRUE;
+static bool set_move_bounds(char bounds_or_ply, char limit, unsigned number) {
+  bool Ok;
+  GlobalState.check_move_bounds = true;
   switch (limit) {
   case 'e':
     GlobalState.lower_move_bound =
         bounds_or_ply == MOVE_BOUNDS_ARGUMENT ? 2 * (number - 1) + 1 : number;
     GlobalState.upper_move_bound =
         bounds_or_ply == MOVE_BOUNDS_ARGUMENT ? 2 * number : number;
-    Ok = TRUE;
+    Ok = true;
     break;
   case 'l':
     if (number <= GlobalState.upper_move_bound) {
       GlobalState.lower_move_bound =
           bounds_or_ply == MOVE_BOUNDS_ARGUMENT ? 2 * (number - 1) + 1 : number;
-      Ok = TRUE;
+      Ok = true;
     } else {
       fprintf(GlobalState.logfile, "Lower bound of ply limit is greater than "
                                    "the upper bound: bound ignored.\n");
-      Ok = FALSE;
+      Ok = false;
     }
     break;
   case 'u':
     if (number >= GlobalState.lower_move_bound) {
       GlobalState.upper_move_bound =
           bounds_or_ply == MOVE_BOUNDS_ARGUMENT ? 2 * number : number;
-      Ok = TRUE;
+      Ok = true;
     } else {
       fprintf(GlobalState.logfile, "Upper bound of ply limit is smaller than "
                                    "the lower bound: bound ignored.\n");
-      Ok = FALSE;
+      Ok = false;
     }
     break;
   default:
     fprintf(GlobalState.logfile, "Internal error: %c must be one of e/l/u.\n",
             limit);
-    Ok = FALSE;
+    Ok = false;
     break;
   }
   return Ok;

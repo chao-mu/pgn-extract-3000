@@ -22,7 +22,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "bool.h"
 #include "defs.h"
 #include "lex.h"
 #include "lines.h"
@@ -42,17 +41,17 @@ static FILE *yyin = NULL;
  * EOF before yywrap() is called.
  * Be careful to leave lex in the right state.
  */
-void read_tag_file(const char *TagFile, Boolean positive_match) {
+void read_tag_file(const char *TagFile, bool positive_match) {
   yyin = fopen(TagFile, "r");
   if (yyin != NULL) {
-    Boolean keep_reading = TRUE;
+    bool keep_reading = true;
 
     while (keep_reading) {
       char *line = next_input_line(yyin);
       if (line != NULL) {
         keep_reading = process_tag_line(TagFile, line, positive_match);
       } else {
-        keep_reading = FALSE;
+        keep_reading = false;
       }
     }
     (void)fclose(yyin);
@@ -69,7 +68,7 @@ void read_tag_file(const char *TagFile, Boolean positive_match) {
  * required output ordering for tags.
  */
 void read_tag_roster_file(const char *RosterFile) {
-  Boolean keep_reading = TRUE;
+  bool keep_reading = true;
   yyin = must_open_file(RosterFile, "r");
 
   while (keep_reading) {
@@ -77,7 +76,7 @@ void read_tag_roster_file(const char *RosterFile) {
     if (line != NULL) {
       keep_reading = process_roster_line(line);
     } else {
-      keep_reading = FALSE;
+      keep_reading = false;
     }
   }
   (void)fclose(yyin);
@@ -86,11 +85,10 @@ void read_tag_roster_file(const char *RosterFile) {
 }
 
 /* Extract a tag/value pair from the given line.
- * Return TRUE if this was successful.
+ * Return true if this was successful.
  */
-Boolean process_tag_line(const char *TagFile, char *line,
-                         Boolean positive_match) {
-  Boolean keep_reading = TRUE;
+bool process_tag_line(const char *TagFile, char *line, bool positive_match) {
+  bool keep_reading = true;
   if (non_blank_line(line)) {
     unsigned char *linep = (unsigned char *)line;
     /* We should find a tag. */
@@ -215,17 +213,17 @@ Boolean process_tag_line(const char *TagFile, char *line,
       }
     } else {
       /* Terminate the reading, as we have run out of tags. */
-      keep_reading = FALSE;
+      keep_reading = false;
     }
   }
   return keep_reading;
 }
 
 /* Extract a tag name from the given line.
- * Return TRUE if this was successful.
+ * Return true if this was successful.
  */
-Boolean process_roster_line(char *line) {
-  Boolean keep_reading = TRUE;
+bool process_roster_line(char *line) {
+  bool keep_reading = true;
   if (non_blank_line(line)) {
     unsigned char *linep = (unsigned char *)line;
     /* We should find a tag. */
@@ -242,7 +240,7 @@ Boolean process_roster_line(char *line) {
       add_to_output_tag_order((TagName)tag_index);
     } else {
       /* Terminate the reading, as we have run out of tags. */
-      keep_reading = FALSE;
+      keep_reading = false;
     }
   }
   return keep_reading;

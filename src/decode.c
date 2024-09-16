@@ -31,7 +31,7 @@
  */
 
 #include "decode.h"
-#include "bool.h"
+
 #include "defs.h"
 #include "lex.h"
 #include "mymalloc.h"
@@ -42,10 +42,10 @@
 #include <string.h>
 
 /* Does the character represent a column of the board? */
-Boolean is_col(char c) { return (FIRSTCOL <= c) && (c <= LASTCOL); }
+bool is_col(char c) { return (FIRSTCOL <= c) && (c <= LASTCOL); }
 
 /* Does the character represent a rank of the board? */
-Boolean is_rank(char c) { return (FIRSTRANK <= c) && (c <= LASTRANK); }
+bool is_rank(char c) { return (FIRSTRANK <= c) && (c <= LASTRANK); }
 
 /* What kind of piece is *move likely to represent?
  * Note, the provision for double-character pieces,
@@ -101,15 +101,15 @@ Piece is_piece(const unsigned char *move) {
  *        Nxc3, e2-e4, etc.
  */
 
-static Boolean is_capture(char c) {
+static bool is_capture(char c) {
   return (c == 'x') || (c == 'X') || (c == ':') || (c == '-');
 }
 
-static Boolean is_castling_character(char c) {
+static bool is_castling_character(char c) {
   return (c == 'O') || (c == '0') || (c == 'o');
 }
 
-Boolean is_check(char c) { return (c == '+') || (c == '#'); }
+bool is_check(char c) { return (c == '+') || (c == '#'); }
 
 /* Allocate space in which to return the information that
  * has been gleaned from the move.
@@ -147,7 +147,7 @@ decode_move(const unsigned char *move_string) { /* The four components of the
   Rank from_rank = 0, to_rank = 0;
   Col from_col = 0, to_col = 0;
   MoveClass class;
-  Boolean Ok = TRUE;
+  bool Ok = true;
   /* Temporary locations until known whether they are from_ or to_. */
   Col col = 0;
   Rank rank = 0;
@@ -200,18 +200,18 @@ decode_move(const unsigned char *move_string) { /* The four components of the
           /* Check the sanity of this. */
           if ((from_col != 'b') && (from_col != (to_col + 1)) &&
               (from_col != (to_col - 1))) {
-            Ok = FALSE;
+            Ok = false;
           }
         } else {
           /* Check the sanity of this. */
           if ((from_col != (to_col + 1)) && (from_col != (to_col - 1))) {
-            Ok = FALSE;
+            Ok = false;
           }
         }
       } else {
         print_error_context(GlobalState.logfile);
         fprintf(GlobalState.logfile, "Unknown pawn move %s.\n", move_string);
-        Ok = FALSE;
+        Ok = false;
       }
     }
     if (Ok) {
@@ -253,7 +253,7 @@ decode_move(const unsigned char *move_string) { /* The four components of the
           move++;
         }
       } else {
-        Ok = FALSE;
+        Ok = false;
         print_error_context(GlobalState.logfile);
         fprintf(GlobalState.logfile, "Unknown piece move %s.\n", move_string);
       }
@@ -268,13 +268,13 @@ decode_move(const unsigned char *move_string) { /* The four components of the
             to_rank = *move;
             move++;
           } else {
-            Ok = FALSE;
+            Ok = false;
             print_error_context(GlobalState.logfile);
             fprintf(GlobalState.logfile, "Unknown piece move %s.\n",
                     move_string);
           }
         } else {
-          Ok = FALSE;
+          Ok = false;
           print_error_context(GlobalState.logfile);
           fprintf(GlobalState.logfile, "Unknown piece move %s.\n", move_string);
         }
@@ -301,7 +301,7 @@ decode_move(const unsigned char *move_string) { /* The four components of the
               to_rank = *move;
               move++;
             } else {
-              Ok = FALSE;
+              Ok = false;
               print_error_context(GlobalState.logfile);
               fprintf(GlobalState.logfile, "Unknown piece move %s.\n",
                       move_string);
@@ -320,12 +320,12 @@ decode_move(const unsigned char *move_string) { /* The four components of the
             move++;
           }
         } else {
-          Ok = FALSE;
+          Ok = false;
           print_error_context(GlobalState.logfile);
           fprintf(GlobalState.logfile, "Unknown piece move %s.\n", move_string);
         }
       } else {
-        Ok = FALSE;
+        Ok = false;
         print_error_context(GlobalState.logfile);
         fprintf(GlobalState.logfile, "Unknown piece move %s.\n", move_string);
       }
@@ -351,14 +351,14 @@ decode_move(const unsigned char *move_string) { /* The four components of the
     } else {
       print_error_context(GlobalState.logfile);
       fprintf(GlobalState.logfile, "Unknown castling move %s.\n", move_string);
-      Ok = FALSE;
+      Ok = false;
     }
   } else if (strcmp((char *)move_string, NULL_MOVE_STRING) == 0) {
     class = NULL_MOVE;
   } else {
     print_error_context(GlobalState.logfile);
     fprintf(GlobalState.logfile, "Unknown move %s.\n", move_string);
-    Ok = FALSE;
+    Ok = false;
   }
   if (Ok && class != NULL_MOVE) {
     /* Allow trailing checks. */
@@ -373,7 +373,7 @@ decode_move(const unsigned char *move_string) { /* The four components of the
       /* These are ok. */
       class = ENPASSANT_PAWN_MOVE;
     } else {
-      Ok = FALSE;
+      Ok = false;
       print_error_context(GlobalState.logfile);
       fprintf(GlobalState.logfile, "Unknown text trailing move %s <%s>.\n",
               move_string, move);
@@ -427,11 +427,11 @@ Move *decode_algebraic(Move *move_details, Board *board) {
 }
 
 /* See if move_string seems to represent the text of a valid move.
- * Don't print any error messages, just return TRUE or FALSE.
+ * Don't print any error messages, just return true or false.
  */
-Boolean move_seems_valid(const unsigned char *move_string) {
+bool move_seems_valid(const unsigned char *move_string) {
   MoveClass class;
-  Boolean Ok = TRUE;
+  bool Ok = true;
   /* A pointer to move along the move string. */
   unsigned const char *move = move_string;
 
@@ -465,7 +465,7 @@ Boolean move_seems_valid(const unsigned char *move_string) {
           move++;
         }
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
     }
     if (Ok) {
@@ -504,7 +504,7 @@ Boolean move_seems_valid(const unsigned char *move_string) {
           move++;
         }
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
     } else {
       if (is_capture(*move)) {
@@ -515,10 +515,10 @@ Boolean move_seems_valid(const unsigned char *move_string) {
           if (is_rank(*move)) {
             move++;
           } else {
-            Ok = FALSE;
+            Ok = false;
           }
         } else {
-          Ok = FALSE;
+          Ok = false;
         }
       } else if (is_col(*move)) {
         move++;
@@ -537,7 +537,7 @@ Boolean move_seems_valid(const unsigned char *move_string) {
             if (is_rank(*move)) {
               move++;
             } else {
-              Ok = FALSE;
+              Ok = false;
             }
           }
         } else if (is_col(*move)) {
@@ -546,13 +546,13 @@ Boolean move_seems_valid(const unsigned char *move_string) {
           if (is_rank(*move)) {
             move++;
           } else {
-            Ok = FALSE;
+            Ok = false;
           }
         } else {
-          Ok = FALSE;
+          Ok = false;
         }
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
     }
   } else if (is_castling_character(*move)) {
@@ -574,10 +574,10 @@ Boolean move_seems_valid(const unsigned char *move_string) {
         class = KINGSIDE_CASTLE;
       }
     } else {
-      Ok = FALSE;
+      Ok = false;
     }
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   if (Ok) {
     /* Allow trailing checks. */
@@ -592,7 +592,7 @@ Boolean move_seems_valid(const unsigned char *move_string) {
       /* These are ok. */
       class = ENPASSANT_PAWN_MOVE;
     } else {
-      Ok = FALSE;
+      Ok = false;
     }
   }
   return Ok;

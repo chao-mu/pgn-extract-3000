@@ -21,7 +21,7 @@
 
 #include "fenmatcher.h"
 #include "apply.h"
-#include "bool.h"
+
 #include "defs.h"
 #include "end.h"
 #include "grammar.h"
@@ -70,11 +70,11 @@ typedef struct FENPatternMatch {
 
 static FENPatternMatch *pattern_tree = NULL;
 
-static Boolean matchhere(const char *regexp, const char *text);
-static Boolean matchstar(const char *regexp, const char *text);
-static Boolean matchccl(const char *regexp, const char *text);
-static Boolean matchnccl(const char *regexp, const char *text);
-static Boolean matchone(char regchar, char textchar);
+static bool matchhere(const char *regexp, const char *text);
+static bool matchstar(const char *regexp, const char *text);
+static bool matchccl(const char *regexp, const char *text);
+static bool matchnccl(const char *regexp, const char *text);
+static bool matchone(char regchar, char textchar);
 static void convert_rank_to_text(const Board *board, Rank rank, char *text);
 static const char *reverse_fen_pattern(const char *pattern);
 static void pattern_tree_insert(char **ranks, const char *label,
@@ -86,12 +86,12 @@ static const char *pattern_match_rank(const Board *board,
                                       char ranks[BOARDSIZE + 1][BOARDSIZE + 1]);
 
 /*
- * Add a FENPattern to be matched. If add_reverse is TRUE then
+ * Add a FENPattern to be matched. If add_reverse is true then
  * additionally add a second pattern that has the colours reversed.
  * If label is non-NULL then associate it with fen_pattern for possible
  * output in a tag when the pattern is matched.
  */
-void add_fen_pattern(const char *fen_pattern, Boolean add_reverse,
+void add_fen_pattern(const char *fen_pattern, bool add_reverse,
                      const char *label) {
   /* Check the pattern has reasonable syntax. */
   /* Count the number of rank dividers. */
@@ -100,17 +100,17 @@ void add_fen_pattern(const char *fen_pattern, Boolean add_reverse,
    * at least one.
    */
   int rankSymbols = 0;
-  Boolean ok = TRUE;
+  bool ok = true;
   const char *p = fen_pattern;
   const char *rank_start = fen_pattern;
-  Boolean in_closure = FALSE;
+  bool in_closure = false;
   char **ranks = (char **)malloc_or_die(BOARDSIZE * sizeof(*ranks));
   while (*p != '\0' && *p != ' ' && *p != MATERIAL_CONSTRAINT && ok) {
     if (*p == '/') {
       /* End of this rank. */
       if (rankSymbols == 0) {
         /* Nothing on the previous rank. */
-        ok = FALSE;
+        ok = false;
       } else {
         int num_chars = p - rank_start;
         ranks[dividers] = (char *)malloc_or_die(num_chars + 1);
@@ -123,23 +123,23 @@ void add_fen_pattern(const char *fen_pattern, Boolean add_reverse,
       rankSymbols = 0;
     } else if (*p == CCL_START) {
       if (!in_closure) {
-        in_closure = TRUE;
+        in_closure = true;
       } else {
-        ok = FALSE;
+        ok = false;
         fprintf(GlobalState.logfile, "Nested closures not allowed: %s\n",
                 fen_pattern);
       }
     } else if (*p == CCL_END) {
       if (in_closure) {
-        in_closure = FALSE;
+        in_closure = false;
       } else {
-        ok = FALSE;
+        ok = false;
         fprintf(GlobalState.logfile, "Missing %c to match %c: %s\n", CCL_START,
                 CCL_END, fen_pattern);
       }
     } else if (*p == NCCL) {
       if (!in_closure) {
-        ok = FALSE;
+        ok = false;
         fprintf(GlobalState.logfile, "%c not allowed outside %c...%c: %s\n",
                 NCCL, CCL_START, CCL_END, fen_pattern);
       }
@@ -149,9 +149,9 @@ void add_fen_pattern(const char *fen_pattern, Boolean add_reverse,
     p++;
   }
   if (dividers != BOARDSIZE - 1) {
-    ok = FALSE;
+    ok = false;
   } else if (rankSymbols == 0) {
-    ok = FALSE;
+    ok = false;
   } else if (ok) {
     /* Store the final regexp of the pattern. */
     int num_chars = p - rank_start;
@@ -164,7 +164,7 @@ void add_fen_pattern(const char *fen_pattern, Boolean add_reverse,
     if (*p == MATERIAL_CONSTRAINT) {
       p++;
       /* Deal with a constraint on the material that must also match. */
-      constraint = process_material_description(p, add_reverse, TRUE);
+      constraint = process_material_description(p, add_reverse, true);
     } else {
       constraint = NULL;
     }
@@ -188,9 +188,9 @@ void add_fen_pattern(const char *fen_pattern, Boolean add_reverse,
         char *rlabel = (char *)malloc_or_die(strlen(label) + 1 + 1);
         strcpy(rlabel, label);
         strcat(rlabel, "I");
-        add_fen_pattern(reversed, FALSE, rlabel);
+        add_fen_pattern(reversed, false, rlabel);
       } else {
-        add_fen_pattern(reversed, FALSE, "");
+        add_fen_pattern(reversed, false, "");
       }
     }
   } else {
@@ -284,10 +284,10 @@ static void pattern_tree_insert(char **ranks, const char *label,
 }
 
 /* Starting at node, try to insert next into the tree.
- * Return TRUE on success, FALSE on failure.
+ * Return true on success, false on failure.
  */
 static void insert_pattern(FENPatternMatch *node, FENPatternMatch *next) {
-  Boolean inserted = FALSE;
+  bool inserted = false;
   while (!inserted && strcmp(node->rank, next->rank) == 0) {
     if (node->next_rank != NULL) {
       /* Same pattern. Move to the next rank of both. */
@@ -297,7 +297,7 @@ static void insert_pattern(FENPatternMatch *node, FENPatternMatch *next) {
       /* Patterns are duplicates. */
       fprintf(GlobalState.logfile,
               "Warning: duplicate FEN patterns detected.\n");
-      inserted = TRUE;
+      inserted = true;
     }
   }
   if (!inserted) {
@@ -373,9 +373,9 @@ pattern_match_rank(const Board *board, FENPatternMatch *pattern,
 /**
  * matchhere: search for regexp at beginning of text
  */
-static Boolean matchhere(const char *regexp, const char *text) {
+static bool matchhere(const char *regexp, const char *text) {
   if (regexp[0] == '\0' && text[0] == '\0') {
-    return TRUE;
+    return true;
   }
   if (regexp[0] == ZERO_OR_MORE_OF_ANYTHING) {
     return matchstar(regexp + 1, text);
@@ -411,14 +411,14 @@ static Boolean matchhere(const char *regexp, const char *text) {
     case '8': {
       /* The number of empty squares required. */
       int empty = regexp[0] - '0';
-      Boolean matches = TRUE;
+      bool matches = true;
       /* The number matched. */
       int match_count = 0;
       while (matches && match_count < empty) {
         if (text[match_count] == EMPTY_SQUARE) {
           match_count++;
         } else {
-          matches = FALSE;
+          matches = false;
         }
       }
       if (matches) {
@@ -433,13 +433,13 @@ static Boolean matchhere(const char *regexp, const char *text) {
     }
   }
   /* No match. */
-  return FALSE;
+  return false;
 }
 
 /**
  * matchstar: leftmost longest search on a single rank.
  */
-static Boolean matchstar(const char *regexp, const char *text) {
+static bool matchstar(const char *regexp, const char *text) {
   const char *t;
 
   /* Find the end of this rank. */
@@ -450,18 +450,18 @@ static Boolean matchstar(const char *regexp, const char *text) {
   do {
     /* * matches zero or more */
     if (matchhere(regexp, t)) {
-      return TRUE;
+      return true;
     }
   } while (t-- > text);
-  return FALSE;
+  return false;
 }
 
 /*
- * Return TRUE if regchar matches textchar, FALSE otherwise.
+ * Return true if regchar matches textchar, false otherwise.
  */
-static Boolean matchone(char regchar, char textchar) {
+static bool matchone(char regchar, char textchar) {
   if (regchar == textchar) {
-    return TRUE;
+    return true;
   } else {
     switch (regchar) {
     case NON_EMPTY_SQUARE:
@@ -475,9 +475,9 @@ static Boolean matchone(char regchar, char textchar) {
       case 'N':
       case 'B':
       case 'P':
-        return TRUE;
+        return true;
       default:
-        return FALSE;
+        return false;
       }
     case ANY_BLACK_PIECE:
       /* Match any black piece. */
@@ -488,22 +488,22 @@ static Boolean matchone(char regchar, char textchar) {
       case 'n':
       case 'b':
       case 'p':
-        return TRUE;
+        return true;
       default:
-        return FALSE;
+        return false;
       }
     case ANY_SQUARE_STATE:
-      return TRUE;
+      return true;
     case NOT_A_PAWN:
       switch (textchar) {
       case 'P':
       case 'p':
-        return FALSE;
+        return false;
       default:
-        return TRUE;
+        return true;
       }
     default:
-      return FALSE;
+      return false;
     }
   }
 }
@@ -511,7 +511,7 @@ static Boolean matchone(char regchar, char textchar) {
 /*
  * Match any of the character closure.
  */
-static Boolean matchccl(const char *regexp, const char *text) {
+static bool matchccl(const char *regexp, const char *text) {
   while (*regexp != CCL_END && !matchone(*regexp, *text) && *regexp != '\0') {
     regexp++;
   }
@@ -521,21 +521,21 @@ static Boolean matchccl(const char *regexp, const char *text) {
     } while (*regexp != CCL_END && *regexp != '\0');
     return matchhere(regexp + 1, text + 1);
   } else {
-    return FALSE;
+    return false;
   }
 }
 
 /*
  * Match any of the characters not in the closure.
  */
-static Boolean matchnccl(const char *regexp, const char *text) {
+static bool matchnccl(const char *regexp, const char *text) {
   while (*regexp != CCL_END && !matchone(*regexp, *text) && *regexp != '\0') {
     regexp++;
   }
   if (*regexp == CCL_END) {
     return matchhere(regexp + 1, text + 1);
   } else {
-    return FALSE;
+    return false;
   }
 }
 

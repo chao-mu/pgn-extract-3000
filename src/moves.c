@@ -30,7 +30,7 @@
 
 #include "moves.h"
 #include "apply.h"
-#include "bool.h"
+
 #include "decode.h"
 #include "defs.h"
 #include "end.h"
@@ -77,7 +77,7 @@ typedef struct {
    * then we need to record whether or not the current move has
    * been matched or not.
    */
-  Boolean matched;
+  bool matched;
 } variant_move;
 
 /* Hold details of a single variation, with a pointer to
@@ -107,9 +107,9 @@ typedef struct variation_list {
 /* The head of the variations-of-interest list. */
 static variation_list *games_to_keep = NULL;
 
-static Boolean is_insufficient_material(const Board *board);
-static Boolean textual_variation_match(const char *variation_move,
-                                       const unsigned char *actual_move);
+static bool is_insufficient_material(const Board *board);
+static bool textual_variation_match(const char *variation_move,
+                                    const unsigned char *actual_move);
 
 /*** Functions concerned with reading details of the variations
  *** of interest.
@@ -183,7 +183,7 @@ static variation_list *compose_variation(char *line) {
        * when we start matching games.
        */
       move_list[num_moves].move = move;
-      move_list[num_moves].matched = FALSE;
+      move_list[num_moves].matched = false;
       /* Keep track of moves that will match anything. */
       if (*move == ANY_MOVE) {
         /* Odd numbered half-moves in the variant list are Black. */
@@ -256,7 +256,7 @@ static Move *compose_positional_variation(char *line) {
   char *move;
   /* Build a linked list of the moves of the variation. */
   Move *head = NULL, *tail = NULL;
-  Boolean Ok = TRUE;
+  bool Ok = true;
   /* Keep track of the ply depth. */
   unsigned depth = 0;
 
@@ -269,7 +269,7 @@ static Move *compose_positional_variation(char *line) {
 
       if (next == NULL) {
         fprintf(GlobalState.logfile, "Failed to identify %s\n", move);
-        Ok = FALSE;
+        Ok = false;
       } else {
         /* Chain it on to the list. */
         if (tail == NULL) {
@@ -328,7 +328,7 @@ void add_positional_variation_from_line(char *line) {
       /* We need to know globally that positional variations
        * are of interest.
        */
-      GlobalState.positional_variations = TRUE;
+      GlobalState.positional_variations = true;
     }
   }
 }
@@ -337,34 +337,34 @@ void add_positional_variation_from_line(char *line) {
  */
 void add_fen_positional_match(const char *fen_string) {
   store_hash_value((Move *)NULL, fen_string);
-  GlobalState.positional_variations = TRUE;
+  GlobalState.positional_variations = true;
 }
 
 /* Treat fen_pattern as being a position to be matched.
  */
-void add_fen_pattern_match(const char *fen_pattern, Boolean add_reverse,
+void add_fen_pattern_match(const char *fen_pattern, bool add_reverse,
                            const char *label) {
   add_fen_pattern(fen_pattern, add_reverse, label);
-  GlobalState.positional_variations = TRUE;
+  GlobalState.positional_variations = true;
 }
 
 /* Roughly define a move character for the purposes of textual
  * matching.
  */
-static Boolean move_char(char c) {
-  return (Boolean)isalpha((int)c) || isdigit((int)c) || (c == '-');
+static bool move_char(char c) {
+  return (bool)isalpha((int)c) || isdigit((int)c) || (c == '-');
 }
 
-/* Return TRUE if there is a match for actual_move in variation_move.
+/* Return true if there is a match for actual_move in variation_move.
  * A match means that the string in actual_move is found surrounded
  * by non-move characters in variation_move. For instance,
  *    variation_move == "Nc6|Nf3|f3" would match
  *    actual_move == "f3" but not actual_move == "c6".
  */
-static Boolean textual_variation_match(const char *variation_move,
-                                       const unsigned char *actual_move) {
+static bool textual_variation_match(const char *variation_move,
+                                    const unsigned char *actual_move) {
   const char *match_point;
-  Boolean found = FALSE;
+  bool found = false;
 
   for (match_point = variation_move; !found && (match_point != NULL);) {
     /* Try for a match from where we are. */
@@ -375,14 +375,14 @@ static Boolean textual_variation_match(const char *variation_move,
        * that we haven't picked up part way through a variation string.
        * Assume success.
        */
-      found = TRUE;
+      found = true;
       if (match_point != variation_move) {
         if (move_char(match_point[-1])) {
-          found = FALSE;
+          found = false;
         }
       }
       if (move_char(match_point[strlen((const char *)actual_move)])) {
-        found = FALSE;
+        found = false;
       }
       if (!found) {
         /* Move on the match point and try again. */
@@ -402,16 +402,15 @@ static Boolean textual_variation_match(const char *variation_move,
 /* Do the moves of the current game match the given variation?
  * Go for a straight 1-1 match in the ordering, without considering
  * permutations.
- * Return TRUE if so, FALSE otherwise.
+ * Return true if so, false otherwise.
  */
-static Boolean straight_match(Move *current_game_head,
-                              variation_list variation) {
+static bool straight_match(Move *current_game_head, variation_list variation) {
   variant_move *moves_of_the_variation;
   /* Which is the next move that we wish to match. */
   Move *next_move;
   unsigned move_index = 0;
   /* Assume that it matches. */
-  Boolean matches = TRUE;
+  bool matches = true;
 
   /* Access the head of the current game. */
   next_move = current_game_head;
@@ -422,7 +421,7 @@ static Boolean straight_match(Move *current_game_head,
   moves_of_the_variation = variation.moves;
   move_index = 0;
   while (matches && (next_move != NULL) && (move_index < variation.length)) {
-    Boolean this_move_matches;
+    bool this_move_matches;
 
     if (*(moves_of_the_variation[move_index].move) == ANY_MOVE) {
       /* Still matching as we don't care what the actual move is. */
@@ -433,12 +432,12 @@ static Boolean straight_match(Move *current_game_head,
         /* We found a match, check that it isn't disallowed. */
         if (*moves_of_the_variation[move_index].move == DISALLOWED_MOVE) {
           /* This move is disallowed and implies failure. */
-          matches = FALSE;
+          matches = false;
         }
       } else {
         if (*moves_of_the_variation[move_index].move != DISALLOWED_MOVE) {
           /* No match found for this move. */
-          matches = FALSE;
+          matches = false;
         } else {
           /* This is ok, because we didn't want a match. */
         }
@@ -470,31 +469,31 @@ static Boolean straight_match(Move *current_game_head,
  * normal move with its c4 component.  If it is used for the latter
  * purpose then it should not count as an any_ move.  There is a warning
  * issued about this when variations are read in.
- * Return TRUE if we match, FALSE otherwise.
+ * Return true if we match, false otherwise.
  *
  * The DISALLOWED_MOVE presents some problems with permutation matches
  * because an ANY_MOVE could match an otherwise disallowed move. The
  * approach that has been taken is to cause matching of a single disallowed
  * move to result in complete failure of the current match.
  */
-static Boolean permutation_match(Move *current_game_head,
-                                 variation_list variation) {
+static bool permutation_match(Move *current_game_head,
+                              variation_list variation) {
   variant_move *moves_of_the_variation;
   /* Which is the next move that we wish to match? */
   Move *next_move;
   unsigned variant_index = 0;
   /* Assume that it matches. */
-  Boolean matches = TRUE;
+  bool matches = true;
   /* How many moves have we matched?
    * When this reaches variation.length we have a full match.
    */
   unsigned matched_moves = 0;
-  Boolean white_to_move = TRUE;
+  bool white_to_move = true;
 
   moves_of_the_variation = variation.moves;
   /* Clear all of the matched fields of the variation. */
   for (variant_index = 0; variant_index < variation.length; variant_index++) {
-    moves_of_the_variation[variant_index].matched = FALSE;
+    moves_of_the_variation[variant_index].matched = false;
   }
   /* Access the head of the current game. */
   next_move = current_game_head;
@@ -506,7 +505,7 @@ static Boolean permutation_match(Move *current_game_head,
   if ((variation.num_white_disallowed_moves > 0) ||
       (variation.num_black_disallowed_moves > 0)) {
     unsigned tested_moves = 0;
-    Boolean disallowed_move_found = FALSE;
+    bool disallowed_move_found = false;
 
     /* Keep going as long as we still have not found a diallowed move,
      * we haven't matched the whole variation, and we haven't reached the end of
@@ -529,7 +528,7 @@ static Boolean permutation_match(Move *current_game_head,
             (textual_variation_match(moves_of_the_variation[variant_index].move,
                                      next_move->move))) {
           /* Found one. */
-          disallowed_move_found = TRUE;
+          disallowed_move_found = true;
         }
         if (!disallowed_move_found) {
           /* Move on to the next available move -- 2 half moves along. */
@@ -545,13 +544,13 @@ static Boolean permutation_match(Move *current_game_head,
     }
     if (disallowed_move_found) {
       /* This rules out the whole match. */
-      matches = FALSE;
+      matches = false;
     } else {
       /* In effect, each DISALLOWED_MOVE now becomes an ANY_MOVE. */
       for (variant_index = 0; variant_index < variation.length;
            variant_index++) {
         if (*moves_of_the_variation[variant_index].move == DISALLOWED_MOVE) {
-          moves_of_the_variation[variant_index].matched = TRUE;
+          moves_of_the_variation[variant_index].matched = true;
           if ((variant_index & 1) == 0) {
             variation.num_white_any_moves++;
           } else {
@@ -568,14 +567,14 @@ static Boolean permutation_match(Move *current_game_head,
    */
   /* Access the head of the current game. */
   next_move = current_game_head;
-  white_to_move = TRUE;
+  white_to_move = true;
   /* Keep going as long as we still have matches, we haven't
    * matched the whole variation, and we haven't reached the end of
    * the game.
    */
   while (matches && (matched_moves < variation.length) && (next_move != NULL)) {
     /* Assume failure. */
-    matches = FALSE;
+    matches = false;
     /* We want to find next_move in an unmatched move of the variation. */
     if (white_to_move) {
       /* Start with the first move. */
@@ -589,12 +588,12 @@ static Boolean permutation_match(Move *current_game_head,
       if (moves_of_the_variation[variant_index].matched) {
         /* We can't try this. */
       } else {
-        Boolean this_move_matches = textual_variation_match(
+        bool this_move_matches = textual_variation_match(
             moves_of_the_variation[variant_index].move, next_move->move);
         if (this_move_matches) {
           /* Found it. */
-          moves_of_the_variation[variant_index].matched = TRUE;
-          matches = TRUE;
+          moves_of_the_variation[variant_index].matched = true;
+          matches = true;
         }
       }
       if (!matches) {
@@ -606,10 +605,10 @@ static Boolean permutation_match(Move *current_game_head,
     if (!matches) {
       /* See if we have some ANY_MOVEs available. */
       if (white_to_move && (variation.num_white_any_moves > 0)) {
-        matches = TRUE;
+        matches = true;
         variation.num_white_any_moves--;
       } else if (!white_to_move && (variation.num_black_any_moves > 0)) {
-        matches = TRUE;
+        matches = true;
         variation.num_black_any_moves--;
       } else {
         /* No slack. */
@@ -634,7 +633,7 @@ static Boolean permutation_match(Move *current_game_head,
  * It will be if we are either not looking for checkmate-only
  * games, or if we are and the games does end in checkmate.
  */
-Boolean check_for_only_checkmate(const Game *game_details) {
+bool check_for_only_checkmate(const Game *game_details) {
   if (GlobalState.match_only_checkmate) {
     const Move *moves = game_details->moves;
     /* Check that the final move is checkmate. */
@@ -642,13 +641,13 @@ Boolean check_for_only_checkmate(const Game *game_details) {
       moves = moves->next;
     }
     if (moves == NULL) {
-      return FALSE;
+      return false;
     } else {
-      return TRUE;
+      return true;
     }
   } else {
     /* No restriction to a checkmate game. */
-    return TRUE;
+    return true;
   }
 }
 
@@ -656,12 +655,12 @@ Boolean check_for_only_checkmate(const Game *game_details) {
  * It will be if we are either not looking for stalemate-only
  * games, or if we are and the games does end in stalemate.
  */
-Boolean check_for_only_stalemate(const Board *board, const Move *moves) {
+bool check_for_only_stalemate(const Board *board, const Move *moves) {
   if (GlobalState.match_only_stalemate) {
     return is_stalemate(board, moves);
   } else {
     /* No restriction to a stalemate game. */
-    return TRUE;
+    return true;
   }
 }
 
@@ -669,12 +668,12 @@ Boolean check_for_only_stalemate(const Board *board, const Move *moves) {
  * It will be if we are either not looking for insufficient-material-only
  * games, or if we are and the games does end with insufficient material.
  */
-Boolean check_for_only_insufficient_material(const Board *board) {
+bool check_for_only_insufficient_material(const Board *board) {
   if (GlobalState.match_only_insufficient_material) {
     return is_insufficient_material(board);
   } else {
     /* No restriction to a stalemate game. */
-    return TRUE;
+    return true;
   }
 }
 
@@ -682,7 +681,7 @@ Boolean check_for_only_insufficient_material(const Board *board) {
  * Determine whether the final position on the given board
  * is stalemate or not.
  */
-Boolean is_stalemate(const Board *board, const Move *moves) {
+bool is_stalemate(const Board *board, const Move *moves) {
   if (moves != NULL) {
     /* Check that the final move is not check or checkmate. */
     const Move *move = moves;
@@ -691,7 +690,7 @@ Boolean is_stalemate(const Board *board, const Move *moves) {
     }
     if (move->check_status != NOCHECK) {
       /* Cannot be stalemate. */
-      return FALSE;
+      return false;
     }
   }
   return !at_least_one_move(board, board->to_move);
@@ -701,7 +700,7 @@ Boolean is_stalemate(const Board *board, const Move *moves) {
  * Determine whether the final position on the given board
  * is stalemate or not.
  */
-static Boolean is_insufficient_material(const Board *board) {
+static bool is_insufficient_material(const Board *board) {
   return insufficient_material(board);
 }
 
@@ -709,8 +708,8 @@ static Boolean is_insufficient_material(const Board *board) {
  * It will be if it matches one of the current variations
  * and its tag details match those that we are interested in.
  */
-Boolean check_textual_variations(const Game *game_details) {
-  Boolean wanted = FALSE;
+bool check_textual_variations(const Game *game_details) {
+  bool wanted = false;
   variation_list *variation;
 
   if (games_to_keep != NULL) {
@@ -726,7 +725,7 @@ Boolean check_textual_variations(const Game *game_details) {
     /* There are no variations, assume that selection is done
      * on the basis of the Details.
      */
-    wanted = TRUE;
+    wanted = true;
   }
   return wanted;
 }
@@ -734,13 +733,13 @@ Boolean check_textual_variations(const Game *game_details) {
 /* Determine whether the number of ply in this game
  * is within the bounds of what we want.
  */
-Boolean check_move_bounds(unsigned plycount) {
+bool check_move_bounds(unsigned plycount) {
 
   if (GlobalState.check_move_bounds) {
     return (GlobalState.lower_move_bound <= plycount) &&
            (plycount <= GlobalState.upper_move_bound);
   } else {
     // No restriction.
-    return TRUE;
+    return true;
   }
 }

@@ -22,11 +22,11 @@
 #ifndef TAGLINES_H
 #define TAGLINES_H
 
-void read_tag_file(const char *TagFile, Boolean positive_match);
+#include <stdbool.h>
+
+void read_tag_file(const char *TagFile, bool positive_match);
 void read_tag_roster_file(const char *RosterFile);
-Boolean process_tag_line(const char *TagFile,char *line, Boolean positive_match);
-Boolean process_roster_line(char *line);
+bool process_tag_line(const char *TagFile, char *line, bool positive_match);
+bool process_roster_line(char *line);
 
-
-#endif	// TAGLINES_H
-
+#endif // TAGLINES_H

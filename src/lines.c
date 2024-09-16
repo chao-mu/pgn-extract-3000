@@ -20,7 +20,7 @@
  */
 
 #include "lines.h"
-#include "bool.h"
+
 #include "mymalloc.h"
 #include <ctype.h>
 #include <stdio.h>
@@ -33,11 +33,11 @@
  */
 #define COMMENT_CHAR '%'
 
-/* Return TRUE if line contains a non-space character, but
+/* Return true if line contains a non-space character, but
  * is not a comment line.
  */
-Boolean non_blank_line(const char *line) {
-  Boolean blank = TRUE;
+bool non_blank_line(const char *line) {
+  bool blank = true;
 
   if (line != NULL) {
     if (comment_line(line)) {
@@ -45,7 +45,7 @@ Boolean non_blank_line(const char *line) {
     } else {
       while (blank && (*line != '\0')) {
         if (!isspace((int)*line)) {
-          blank = FALSE;
+          blank = false;
         } else {
           line++;
         }
@@ -55,7 +55,7 @@ Boolean non_blank_line(const char *line) {
   return !blank;
 }
 
-Boolean blank_line(const char *line) { return !non_blank_line(line); }
+bool blank_line(const char *line) { return !non_blank_line(line); }
 
 /* Should the given line be regarded as a comment line? */
-Boolean comment_line(const char *line) { return *line == COMMENT_CHAR; }
+bool comment_line(const char *line) { return *line == COMMENT_CHAR; }

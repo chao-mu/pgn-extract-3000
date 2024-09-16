@@ -22,13 +22,16 @@
 #ifndef APPLY_H
 #define APPLY_H
 
+#include <stdbool.h>
+
 #include "typedef.h"
 
 void add_fen_castling(Game *game_details, Board *board);
-Boolean apply_move_list(Game *game_details,unsigned *plycount, unsigned max_depth, Boolean check_for_a_match);
-Boolean apply_move(Move *move_details, Board *board);
-Board *apply_eco_move_list(Game *game_details,unsigned *number_of_half_moves);
-void build_basic_EPD_string(const Board *board,char *fen);
+bool apply_move_list(Game *game_details, unsigned *plycount, unsigned max_depth,
+                     bool check_for_a_match);
+bool apply_move(Move *move_details, Board *board);
+Board *apply_eco_move_list(Game *game_details, unsigned *number_of_half_moves);
+void build_basic_EPD_string(const Board *board, char *fen);
 char coloured_piece_to_SAN_letter(Piece coloured_piece);
 Piece convert_FEN_char_to_piece(char c);
 CommentList *create_match_comment(const Board *board);
@@ -39,9 +42,9 @@ Board *new_game_board(const char *fen);
 const char *piece_str(Piece piece);
 Board *rewrite_game(Game *game_details);
 char SAN_piece_letter(Piece piece);
-Boolean save_polyglot_hashcode(const char *value);
+bool save_polyglot_hashcode(const char *value);
 /* letters should contain a string of the form: "PNBRQK" */
 void set_output_piece_characters(const char *letters);
-void store_hash_value(Move *move_details,const char *fen);
+void store_hash_value(Move *move_details, const char *fen);
 
 #endif // APPLY_H

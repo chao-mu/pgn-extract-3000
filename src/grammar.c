@@ -21,7 +21,7 @@
 
 #include "grammar.h"
 #include "apply.h"
-#include "bool.h"
+
 #include "defs.h"
 #include "eco.h"
 #include "end.h"
@@ -62,16 +62,16 @@ static struct {
 } GameHeader;
 
 static void parse_opt_game_list(SourceFileType file_type);
-static Boolean parse_game(Move **returned_move_list, unsigned long *start_line,
-                          unsigned long *end_line);
-Boolean parse_opt_tag_list(void);
-Boolean parse_tag(void);
+static bool parse_game(Move **returned_move_list, unsigned long *start_line,
+                       unsigned long *end_line);
+bool parse_opt_tag_list(void);
+bool parse_tag(void);
 static Move *parse_move_list(void);
 static Move *parse_move_and_variants(void);
 static Move *parse_move(void);
 static Move *parse_move_unit(void);
 static CommentList *parse_opt_comment_list(void);
-Boolean parse_opt_move_number(void);
+bool parse_opt_move_number(void);
 static void parse_opt_NAG_list(Move *move_details);
 static Variation *parse_opt_variant_list(void);
 static Variation *parse_variant(void);
@@ -80,12 +80,12 @@ static char *parse_result(void);
 static void setup_for_new_game(void);
 static CommentList *append_comment(CommentList *item, CommentList *list);
 static void check_result(char **Tags, const char *terminating_result);
-static Boolean check_for_comments(const Game *game);
-static Boolean chess960_setup(Board *board);
+static bool check_for_comments(const Game *game);
+static bool chess960_setup(Board *board);
 static void deal_with_ECO_line(Move *move_list);
 static void deal_with_game(Move *move_list, unsigned long start_line,
                            unsigned long end_line);
-static Boolean finished_processing(void);
+static bool finished_processing(void);
 static void free_tags(void);
 static CommentList *merge_comment_lists(CommentList *prefix,
                                         CommentList *suffix);
@@ -189,15 +189,15 @@ static void check_result(char **Tags, const char *terminating_result) {
   }
 }
 
-/* Return TRUE if there is at least one comment in the move list,
+/* Return true if there is at least one comment in the move list,
  * or any of its variations.
  */
-static Boolean comments_in_move_list(const Move *move_list) {
-  Boolean comment_found = FALSE;
+static bool comments_in_move_list(const Move *move_list) {
+  bool comment_found = false;
   const Move *move = move_list;
   while (!comment_found && move != NULL) {
     if (move->comment_list != NULL) {
-      comment_found = TRUE;
+      comment_found = true;
     } else {
       if (move->Variants != NULL) {
         const Variation *v = move->Variants;
@@ -217,15 +217,15 @@ static Boolean comments_in_move_list(const Move *move_list) {
 }
 
 /* Check whether only games with comments are to be retained. */
-static Boolean check_for_comments(const Game *game) {
+static bool check_for_comments(const Game *game) {
   if (GlobalState.keep_only_commented_games) {
     if (game->prefix_comment != NULL) {
-      return TRUE;
+      return true;
     } else {
       return comments_in_move_list(game->moves);
     }
   } else {
-    return TRUE;
+    return true;
   }
 }
 
@@ -281,7 +281,7 @@ static FILE *select_output_file(StateInfo *GameState, const char *eco) {
  * Conditions for finishing processing, other than all the input
  * having been processed.
  */
-static Boolean finished_processing(void) {
+static bool finished_processing(void) {
   return (GlobalState.matching_game_numbers != NULL &&
           GlobalState.next_game_number_to_output == NULL) ||
          (GlobalState.maximum_matches > 0 &&
@@ -292,7 +292,7 @@ static Boolean finished_processing(void) {
 /*
  * Is the given game number within the range to be matched?
  */
-static Boolean in_game_number_range(unsigned long number, game_number *range) {
+static bool in_game_number_range(unsigned long number, game_number *range) {
   return range != NULL && range->min <= number && number <= range->max;
 }
 
@@ -329,9 +329,9 @@ static void parse_opt_game_list(SourceFileType file_type) {
 /* Parse a game and return a pointer to any valid list of moves
  * in returned_move_list.
  */
-static Boolean
+static bool
 parse_game(Move **returned_move_list, unsigned long *start_line,
-           unsigned long *end_line) { /* Boolean something_found = FALSE; */
+           unsigned long *end_line) { /* bool something_found = false; */
   CommentList *prefix_comment;
   Move *move_list = NULL;
   char *result;
@@ -350,13 +350,13 @@ parse_game(Move **returned_move_list, unsigned long *start_line,
      * know whether it belongs to the game or the file.
      * It is better to put game comments after the tags.
      */
-    /* something_found = TRUE; */
+    /* something_found = true; */
     free_comment_list(prefix_comment);
     prefix_comment = NULL;
   }
   *start_line = get_line_number();
   if (parse_opt_tag_list()) {
-    /* something_found = TRUE; */
+    /* something_found = true; */
   }
 
   /* Some games have an initial NAG as a print-board indication.
@@ -397,7 +397,7 @@ parse_game(Move **returned_move_list, unsigned long *start_line,
       fprintf(GlobalState.logfile, "Missing result.\n");
       report_details(GlobalState.logfile);
     }
-    /* something_found = TRUE; */
+    /* something_found = true; */
   } else {
     /* @@@ Nothing to attach the comment to. */
     (void)free((void *)hanging_comment);
@@ -418,23 +418,23 @@ parse_game(Move **returned_move_list, unsigned long *start_line,
   return current_symbol != EOF_TOKEN;
 }
 
-Boolean parse_opt_tag_list(void) {
-  Boolean something_found = FALSE;
+bool parse_opt_tag_list(void) {
+  bool something_found = false;
   CommentList *prefix_comment;
 
   while (parse_tag()) {
-    something_found = TRUE;
+    something_found = true;
   }
   prefix_comment = parse_opt_comment_list();
   if (prefix_comment != NULL) {
     GameHeader.prefix_comment = prefix_comment;
-    something_found = TRUE;
+    something_found = true;
   }
   return something_found;
 }
 
-/* Return TRUE if it looks like board contains an initial
- * Chess 960 setup position. FALSE otherwise.
+/* Return true if it looks like board contains an initial
+ * Chess 960 setup position. false otherwise.
  * Assessment requires that:
  *     + The move number be 1.
  *     + All castling rights are intact.
@@ -442,13 +442,13 @@ Boolean parse_opt_tag_list(void) {
  *     + Identical pieces are opposite each other on the back rank.
  *     + At least one piece is out of its standard position.
  */
-static Boolean chess960_setup(Board *board) {
+static bool chess960_setup(Board *board) {
   if (board->move_number == 1 && board->WKingRank == '1' &&
       board->BKingRank == '8' && board->WKingCol == board->BKingCol &&
       (board->WKingCastle != '\0' && board->WQueenCastle != '\0' &&
        board->BKingCastle != '\0' && board->BQueenCastle != '\0')) {
     /* Check for a full set of pawns. */
-    Boolean probable = TRUE;
+    bool probable = true;
     int white_r = RankConvert('2');
     int black_r = RankConvert('7');
     Piece white_pawn = MAKE_COLOURED_PIECE(WHITE, PAWN);
@@ -482,12 +482,12 @@ static Boolean chess960_setup(Board *board) {
     }
     return probable;
   } else {
-    return FALSE;
+    return false;
   }
 }
 
-Boolean parse_tag(void) {
-  Boolean TagFound = TRUE;
+bool parse_tag(void) {
+  bool TagFound = true;
 
   if (current_symbol == TAG) {
     TagName tag_index = yylval.tag_index;
@@ -527,7 +527,7 @@ Boolean parse_tag(void) {
       /* No point reporting the error. */
     }
   } else {
-    TagFound = FALSE;
+    TagFound = false;
   }
   return TagFound;
 }
@@ -624,12 +624,12 @@ static CommentList *parse_opt_comment_list(void) {
   return head;
 }
 
-Boolean parse_opt_move_number(void) {
-  Boolean something_found = FALSE;
+bool parse_opt_move_number(void) {
+  bool something_found = false;
 
   if (current_symbol == MOVE_NUMBER) {
     current_symbol = next_token();
-    something_found = TRUE;
+    something_found = true;
   }
   return something_found;
 }
@@ -932,14 +932,14 @@ static CommentList *merge_comment_lists(CommentList *prefix,
 }
 
 /* Check for consistency of any FEN-related tags. */
-static Boolean consistent_FEN_tags(Game *current_game) {
-  Boolean consistent = TRUE;
+static bool consistent_FEN_tags(Game *current_game) {
+  bool consistent = true;
 
   if ((current_game->tags[SETUP_TAG] != NULL) &&
       (strcmp(current_game->tags[SETUP_TAG], "1") == 0)) {
     /* There must be a FEN_TAG to go with it. */
     if (current_game->tags[FEN_TAG] == NULL) {
-      consistent = FALSE;
+      consistent = false;
       report_details(GlobalState.logfile);
       fprintf(GlobalState.logfile, "Missing %s Tag to accompany %s Tag.\n",
               tag_header_string(FEN_TAG), tag_header_string(SETUP_TAG));
@@ -965,7 +965,7 @@ static Boolean consistent_FEN_tags(Game *current_game) {
         current_game->tags[SETUP_TAG] = copy_string("1");
       }
 
-      Boolean chess960 = chess960_setup(board);
+      bool chess960 = chess960_setup(board);
       if (current_game->tags[VARIANT_TAG] == NULL) {
         /* See if there should be a Variant tag. */
         /* Look for an initial position found in Chess 960. */
@@ -978,7 +978,7 @@ static Boolean consistent_FEN_tags(Game *current_game) {
           /* Fix the inconsistency. */
           current_game->tags[VARIANT_TAG] = copy_string(missing_value);
         } else if (GlobalState.add_fen_castling) {
-          /* If add_fen_castling is TRUE and castling permissions are absent
+          /* If add_fen_castling is true and castling permissions are absent
            * then liberally assume them based on the King and Rook positions.
            */
           if (!board->WKingCastle && !board->WQueenCastle &&
@@ -992,7 +992,7 @@ static Boolean consistent_FEN_tags(Game *current_game) {
 
       free_board(board);
     } else {
-      consistent = FALSE;
+      consistent = false;
     }
   }
   return consistent;
@@ -1004,9 +1004,9 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
   /* We need a dummy argument for apply_move_list. */
   unsigned plycount;
   /* Whether the game matches, as long as it is not in a CHECKFILE. */
-  Boolean game_matches = FALSE;
+  bool game_matches = false;
   /* Whether to output the game. */
-  Boolean output_the_game = FALSE;
+  bool output_the_game = false;
 
   if (GlobalState.current_file_type != CHECKFILE) {
     /* Update the count of how many games handled. */
@@ -1018,8 +1018,8 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
   current_game.tags_length = GameHeader.header_tags_length;
   current_game.prefix_comment = GameHeader.prefix_comment;
   current_game.moves = move_list;
-  current_game.moves_checked = FALSE;
-  current_game.moves_ok = FALSE;
+  current_game.moves_checked = false;
+  current_game.moves_ok = false;
   current_game.error_ply = 0;
   current_game.position_counts = NULL;
   current_game.start_line = start_line;
@@ -1031,7 +1031,7 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
 
   /*
    * apply_move_list checks out the moves.
-   * If it returns TRUE as a match, it will also fill in the
+   * If it returns true as a match, it will also fill in the
    *     current_game.final_hash_value and
    *     current_game.cumulative_hash_value
    * fields of current_game so that these can be used in the
@@ -1049,16 +1049,16 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
    */
   if (consistent_FEN_tags(&current_game) &&
       check_tag_details_not_ECO(current_game.tags, current_game.tags_length,
-                                TRUE) &&
+                                true) &&
       check_setup_tag(current_game.tags) &&
       check_duplicate_setup(&current_game) &&
       apply_move_list(&current_game, &plycount,
-                      GlobalState.depth_of_positional_search, TRUE) &&
+                      GlobalState.depth_of_positional_search, true) &&
       check_move_bounds(plycount) && check_textual_variations(&current_game) &&
       check_for_material_match(&current_game) &&
       check_for_only_checkmate(&current_game) &&
       check_for_only_repetition(current_game.position_counts) &&
-      check_ECO_tag(current_game.tags, TRUE) &&
+      check_ECO_tag(current_game.tags, true) &&
       check_for_comments(&current_game)) {
     /* If there is no original filename then the game is not a
      * duplicate.
@@ -1073,7 +1073,7 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
         /* We are only checking, so don't count this as a matched game. */
       } else if (GlobalState.num_games_processed >=
                  GlobalState.first_game_number) {
-        game_matches = TRUE;
+        game_matches = true;
         GlobalState.num_games_matched++;
         if (GlobalState.matching_game_numbers != NULL &&
             !in_game_number_range(GlobalState.num_games_matched,
@@ -1095,7 +1095,7 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
             report_details(GlobalState.logfile);
           }
         } else {
-          output_the_game = TRUE;
+          output_the_game = true;
         }
       } else {
         /* Not wanted. */
@@ -1149,7 +1149,7 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
       /* Make sure that the move text is in a reasonable state.
        * Force checking of the whole game.
        */
-      (void)apply_move_list(&current_game, &plycount, 0, FALSE);
+      (void)apply_move_list(&current_game, &plycount, 0, false);
     }
     if (current_game.moves_ok || GlobalState.keep_broken_games) {
       if (GlobalState.json_format) {
@@ -1329,8 +1329,8 @@ static void deal_with_ECO_line(Move *move_list) {
   current_game.tags_length = GameHeader.header_tags_length;
   current_game.prefix_comment = GameHeader.prefix_comment;
   current_game.moves = move_list;
-  current_game.moves_checked = FALSE;
-  current_game.moves_ok = FALSE;
+  current_game.moves_checked = false;
+  current_game.moves_ok = false;
   current_game.error_ply = 0;
 
   /* apply_eco_move_list checks out the moves.

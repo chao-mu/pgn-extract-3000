@@ -22,6 +22,8 @@
 #ifndef MOVES_H
 #define MOVES_H
 
+#include <stdbool.h>
+
 #include "typedef.h"
 
 void add_positional_variations_from_file(FILE *fpin);
@@ -29,13 +31,13 @@ void add_positional_variation_from_line(char *line);
 void add_textual_variations_from_file(FILE *fpin);
 void add_textual_variation_from_line(char *line);
 void add_fen_positional_match(const char *fen_string);
-void add_fen_pattern_match(const char *fen_pattern, Boolean add_reverse, const char *label);
-Boolean check_for_only_checkmate(const Game *game_details);
-Boolean check_for_only_insufficient_material(const Board *board);
-Boolean check_for_only_stalemate(const Board *board, const Move *moves);
-Boolean check_move_bounds(unsigned plycount);
-Boolean check_textual_variations(const Game *game_details);
-Boolean is_stalemate(const Board *board, const Move *moves);
+void add_fen_pattern_match(const char *fen_pattern, bool add_reverse,
+                           const char *label);
+bool check_for_only_checkmate(const Game *game_details);
+bool check_for_only_insufficient_material(const Board *board);
+bool check_for_only_stalemate(const Board *board, const Move *moves);
+bool check_move_bounds(unsigned plycount);
+bool check_textual_variations(const Game *game_details);
+bool is_stalemate(const Board *board, const Move *moves);
 
-#endif	// MOVES_H
-
+#endif // MOVES_H

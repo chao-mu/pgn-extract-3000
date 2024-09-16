@@ -38,7 +38,7 @@
 
 #include "zobrist.h"
 #include "apply.h"
-#include "bool.h"
+
 #include "decode.h"
 #include "defs.h"
 #include "grammar.h"
@@ -331,8 +331,8 @@ static const uint64_t *white_to_move_element =
 /* The SAN piece letters in the order assumed by the Random64 array. */
 static const char FEN_pieces[] = "pPnNbBrRqQkK";
 
-/* Return TRUE if c is one of the English SAN FEN piece characters. */
-static Boolean is_FEN_piece(char c) { return strchr(FEN_pieces, c) != NULL; }
+/* Return true if c is one of the English SAN FEN piece characters. */
+static bool is_FEN_piece(char c) { return strchr(FEN_pieces, c) != NULL; }
 
 /* Return the index of the given piece character in FEN_pieces.
  * NB: c must be a valid English SAN piece letter.
@@ -362,7 +362,7 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
   Rank rank = LASTRANK;
   Col col = FIRSTCOL;
   const char *fen_char = fen;
-  Boolean Ok = TRUE;
+  bool Ok = true;
   uint64_t hash = 0;
   // Keep track of where the pieces are for en passant encoding.
   char board[8][8] = {
@@ -460,7 +460,7 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
         col++;
         fen_char++;
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
     } else if (isdigit((int)ch)) {
       if ((FIRSTRANK <= ch) && (ch <= LASTRANK)) {
@@ -472,10 +472,10 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
         if (col <= (LASTCOL + 1)) {
           fen_char++;
         } else {
-          Ok = FALSE;
+          Ok = false;
         }
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
     } else if (ch == '/') {
       /* End of that rank. We should have completely filled the
@@ -486,11 +486,11 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
         rank--;
         fen_char++;
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
     } else {
       /* Unknown character. */
-      Ok = FALSE;
+      Ok = false;
     }
   }
   /* As we don't print any error messages until the end of the function,
@@ -500,7 +500,7 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
     /* Find out who is to move. */
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   /* Which player to move? */
   char to_move = *fen_char;
@@ -510,12 +510,12 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
   } else if (to_move == 'b') {
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   if (*fen_char == ' ') {
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   /* Determine castling rights. */
   /* Chess960 notation for castling is not currently accommodated. */
@@ -523,17 +523,17 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
     /* No castling rights -- default above. */
     fen_char++;
   } else {
-    Boolean chess960 = FALSE;
+    bool chess960 = false;
     /* Check to make sure that this section isn't empty. */
     if (*fen_char == ' ') {
-      chess960 = TRUE;
+      chess960 = true;
     }
 
     if (*fen_char == 'K') {
       hash ^= castling_section[0];
       fen_char++;
     } else if (*fen_char >= 'A' && *fen_char <= 'H') {
-      chess960 = TRUE;
+      chess960 = true;
       fen_char++;
     } else {
     }
@@ -541,7 +541,7 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
       hash ^= castling_section[1];
       fen_char++;
     } else if (*fen_char >= 'A' && *fen_char <= 'H') {
-      chess960 = TRUE;
+      chess960 = true;
       fen_char++;
     } else {
     }
@@ -550,7 +550,7 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
       hash ^= castling_section[2];
       fen_char++;
     } else if (*fen_char >= FIRSTCOL && *fen_char <= LASTCOL) {
-      chess960 = TRUE;
+      chess960 = true;
       fen_char++;
     } else {
     }
@@ -558,7 +558,7 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
       hash ^= castling_section[3];
       fen_char++;
     } else if (*fen_char >= FIRSTCOL && *fen_char <= LASTCOL) {
-      chess960 = TRUE;
+      chess960 = true;
       fen_char++;
     } else {
     }
@@ -566,13 +566,13 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
       fprintf(GlobalState.logfile, "Chess960 castling notation not supported "
                                    "in generating a hashcode.\n");
       report_details(GlobalState.logfile);
-      Ok = FALSE;
+      Ok = false;
     }
   }
   if (*fen_char == ' ') {
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
 
   /* Check for an en-passant square. */
@@ -585,22 +585,22 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
     if (is_rank(*fen_char)) {
       rank = *fen_char;
       /* Check that the en-passant move is usable. */
-      Boolean usable = FALSE;
+      bool usable = false;
       if (to_move == 'b') {
         if (col > FIRSTCOL &&
             board['4' - FIRSTRANK][col - FIRSTCOL - 1] == 'p') {
-          usable = TRUE;
+          usable = true;
         } else if (col < LASTCOL &&
                    board['4' - FIRSTRANK][col - FIRSTCOL + 1] == 'p') {
-          usable = TRUE;
+          usable = true;
         }
       } else if (to_move == 'w') {
         if (col > FIRSTCOL &&
             board['5' - FIRSTRANK][col - FIRSTCOL - 1] == 'P') {
-          usable = TRUE;
+          usable = true;
         } else if (col < LASTCOL &&
                    board['5' - FIRSTRANK][col - FIRSTCOL + 1] == 'P') {
-          usable = TRUE;
+          usable = true;
         }
       }
       if (usable) {
@@ -608,15 +608,15 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
       }
       fen_char++;
     } else {
-      Ok = FALSE;
+      Ok = false;
     }
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   if (*fen_char == ' ') {
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
 
 #if 0
@@ -636,13 +636,13 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
         }
     }
     else {
-        Ok = FALSE;
+        Ok = false;
     }
     if (*fen_char == ' ') {
         fen_char++;
     }
     else {
-        Ok = FALSE;
+        Ok = false;
     }
     /* Check for current move number. */
     if (isdigit((int) *fen_char)) {
@@ -652,14 +652,14 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
         }
     }
     else {
-        Ok = FALSE;
+        Ok = false;
     }
     /* Allow trailing space. */
     while (isspace((int) *fen_char)) {
         fen_char++;
     }
     if (*fen_char != '\0') {
-        Ok = FALSE;
+        Ok = false;
     }
 #endif
 
@@ -761,7 +761,7 @@ uint64_t generate_zobrist_hash_from_board(const Board *board) {
      * Assume that it is unless there is a pawn in position to
      * take advantage of it.
      */
-    Boolean redundant = TRUE;
+    bool redundant = true;
     Col ep_col = board->ep_col;
     Rank from_rank;
     Piece pawn;
@@ -777,12 +777,12 @@ uint64_t generate_zobrist_hash_from_board(const Board *board) {
     if ((ep_col > FIRSTCOL) &&
         (board->board[RankConvert(from_rank)][ColConvert(ep_col - 1)] ==
          pawn)) {
-      redundant = FALSE;
+      redundant = false;
     }
     if (redundant && (ep_col < LASTCOL) &&
         (board->board[RankConvert(from_rank)][ColConvert(ep_col + 1)] ==
          pawn)) {
-      redundant = FALSE;
+      redundant = false;
     }
     if (!redundant) {
       hash ^= en_passant_section[ep_col - FIRSTCOL];

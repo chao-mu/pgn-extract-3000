@@ -21,7 +21,7 @@
 
 #include "map.h"
 #include "apply.h"
-#include "bool.h"
+
 #include "decode.h"
 #include "defs.h"
 #include "lex.h"
@@ -166,7 +166,7 @@ HashCode hash_lookup(Col col, Rank rank, Piece piece, Colour colour) {
 }
 
 /* Is the given piece of the named colour? */
-static Boolean piece_is_colour(Piece coloured_piece, Colour colour) {
+static bool piece_is_colour(Piece coloured_piece, Colour colour) {
   return EXTRACT_COLOUR(coloured_piece) == colour;
 }
 
@@ -182,7 +182,7 @@ void make_move(MoveClass class, Col from_col, Rank from_rank, Col to_col,
   int from_r = RankConvert(from_rank);
   int from_c = ColConvert(from_col);
   /* Does this move involve a capture? */
-  Boolean capture = FALSE;
+  bool capture = false;
   /* For a castling move, where is the Rook? */
   Col castling_rook_col;
 
@@ -237,12 +237,12 @@ void make_move(MoveClass class, Col from_col, Rank from_rank, Col to_col,
   /* Check for en-passant rights resulting from this move. */
   if (piece != PAWN) {
     /* The move cannot result in en-passant rights. */
-    board->EnPassant = FALSE;
+    board->EnPassant = false;
   } else {
     if (colour == WHITE) {
       if ((from_rank == '2') && (to_rank == '4')) {
         /* This move permits an en-passant capture on the following move. */
-        board->EnPassant = TRUE;
+        board->EnPassant = true;
         board->ep_rank = to_rank - 1;
         board->ep_col = to_col;
       } else if ((board->EnPassant) && (board->ep_rank == to_rank) &&
@@ -250,13 +250,13 @@ void make_move(MoveClass class, Col from_col, Rank from_rank, Col to_col,
         /* This is an ep capture. Remove the intermediate pawn. */
         board->board[RankConvert(to_rank) - 1][ColConvert(to_col)] = EMPTY;
         board->weak_hash_value ^= hash_lookup(to_col, to_rank - 1, PAWN, BLACK);
-        board->EnPassant = FALSE;
+        board->EnPassant = false;
       } else {
-        board->EnPassant = FALSE;
+        board->EnPassant = false;
       }
     } else {
       if ((from_rank == '7') && (to_rank == '5')) {
-        board->EnPassant = TRUE;
+        board->EnPassant = true;
         board->ep_rank = to_rank + 1;
         board->ep_col = to_col;
       } else if ((board->EnPassant) && (board->ep_rank == to_rank) &&
@@ -264,9 +264,9 @@ void make_move(MoveClass class, Col from_col, Rank from_rank, Col to_col,
         /* This is an ep capture. Remove the intermediate pawn. */
         board->board[RankConvert(to_rank) + 1][ColConvert(to_col)] = EMPTY;
         board->weak_hash_value ^= hash_lookup(to_col, to_rank + 1, PAWN, WHITE);
-        board->EnPassant = FALSE;
+        board->EnPassant = false;
       } else {
-        board->EnPassant = FALSE;
+        board->EnPassant = false;
       }
     }
   }
@@ -316,7 +316,7 @@ void make_move(MoveClass class, Col from_col, Rank from_rank, Col to_col,
     }
     if (class != KINGSIDE_CASTLE && class != QUEENSIDE_CASTLE) {
       /* A genuine capture. */
-      capture = TRUE;
+      capture = true;
     }
   }
   /* Deal with the half-move clock. */
@@ -596,7 +596,7 @@ MovePair *find_king_moves(Col to_col, Rank to_rank, Colour colour,
   MovePair *move_list = NULL;
   Piece target_piece = MAKE_COLOURED_PIECE(colour, KING);
   /* Stop once the single King is found. */
-  Boolean found = FALSE;
+  bool found = false;
 
   /* Pick up pairs of offsets from to_r,to_c to look for a King of
    * the right colour.
@@ -608,7 +608,7 @@ MovePair *find_king_moves(Col to_col, Rank to_rank, Colour colour,
     if (board->board[r][c] == target_piece) {
       move_list =
           append_move_pair(ToCol(c), ToRank(r), to_col, to_rank, move_list);
-      found = TRUE;
+      found = true;
     }
   }
   if (!found) {
@@ -616,17 +616,17 @@ MovePair *find_king_moves(Col to_col, Rank to_rank, Colour colour,
      * Represented as a move to the position occupied by
      * one of colour's own rooks.
      */
-    Boolean possible_castling_move = FALSE;
+    bool possible_castling_move = false;
     if (colour == WHITE) {
       if (to_rank == '1') {
         if (to_col == board->WKingCastle || to_col == board->WQueenCastle) {
-          possible_castling_move = TRUE;
+          possible_castling_move = true;
         }
       }
     } else {
       if (to_rank == '8') {
         if (to_col == board->BKingCastle || to_col == board->BQueenCastle) {
-          possible_castling_move = TRUE;
+          possible_castling_move = true;
         }
       }
     }
@@ -636,7 +636,7 @@ MovePair *find_king_moves(Col to_col, Rank to_rank, Colour colour,
         if (board->board[to_r][c] == target_piece) {
           move_list =
               append_move_pair(col, to_rank, to_col, to_rank, move_list);
-          found = TRUE;
+          found = true;
         } else {
           c++;
         }
@@ -651,9 +651,9 @@ MovePair *find_king_moves(Col to_col, Rank to_rank, Colour colour,
  * incomplete.  For instance: e4 supplies just the to_ information
  * whereas cb supplies some from_ and some to_.
  */
-static Boolean find_single_pawn_move(Col from_col, Rank from_rank, Col to_col,
-                                     Rank to_rank, Colour colour,
-                                     const Board *board) {
+static bool find_single_pawn_move(Col from_col, Rank from_rank, Col to_col,
+                                  Rank to_rank, Colour colour,
+                                  const Board *board) {
   int to_r = RankConvert(to_rank);
   int to_c = ColConvert(to_col);
   int from_r = RankConvert(from_rank);
@@ -661,7 +661,7 @@ static Boolean find_single_pawn_move(Col from_col, Rank from_rank, Col to_col,
   /* White pawn moves are offset by +1, Black by -1. */
   int offset = COLOUR_OFFSET(colour);
   Piece piece_to_move = MAKE_COLOURED_PIECE(colour, PAWN);
-  Boolean found = FALSE;
+  bool found = false;
 
   if ((to_col != 0) && (to_rank != 0)) {
     /* We know the complete destination. */
@@ -669,12 +669,12 @@ static Boolean find_single_pawn_move(Col from_col, Rank from_rank, Col to_col,
       /* Destination must be empty for this form. */
       if (board->board[to_r - offset][to_c] == piece_to_move) {
         /* MovePair of one square. */
-        found = TRUE;
+        found = true;
       } else if ((board->board[to_r - offset][to_c] == EMPTY) &&
                  (to_rank == (colour == WHITE ? '4' : '5'))) {
         /* Special case of initial two square move. */
         if (board->board[to_r - 2 * offset][to_c] == piece_to_move) {
-          found = TRUE;
+          found = true;
         }
       } else if (board->EnPassant && (board->ep_rank == to_rank) &&
                  (board->ep_col == to_col)) {
@@ -682,7 +682,7 @@ static Boolean find_single_pawn_move(Col from_col, Rank from_rank, Col to_col,
         if (from_col != 0) {
           from_r = to_r - offset;
           if (board->board[from_r][from_c] == piece_to_move) {
-            found = TRUE;
+            found = true;
           }
         }
       }
@@ -693,7 +693,7 @@ static Boolean find_single_pawn_move(Col from_col, Rank from_rank, Col to_col,
         /* We know the from column. */
         from_r = to_r - offset;
         if (board->board[from_r][from_c] == piece_to_move) {
-          found = TRUE;
+          found = true;
         }
       }
     } else {
@@ -714,10 +714,10 @@ static Boolean find_single_pawn_move(Col from_col, Rank from_rank, Col to_col,
 
           if ((occupant != EMPTY) &&
               (piece_is_colour(occupant, OPPOSITE_COLOUR(colour)))) {
-            found = TRUE;
+            found = true;
           } else if (board->EnPassant && (board->ep_rank == ToRank(to_r)) &&
                      (board->ep_col == ToCol(to_c))) {
-            found = TRUE;
+            found = true;
           }
         }
       } else {
@@ -742,10 +742,10 @@ static Boolean find_single_pawn_move(Col from_col, Rank from_rank, Col to_col,
 
             if ((occupant != EMPTY) &&
                 (piece_is_colour(occupant, OPPOSITE_COLOUR(colour)))) {
-              found = TRUE;
+              found = true;
             } else if (board->EnPassant && (board->ep_rank == ToRank(to_r)) &&
                        (board->ep_col == ToCol(to_c))) {
-              found = TRUE;
+              found = true;
             }
           }
         }
@@ -756,13 +756,13 @@ static Boolean find_single_pawn_move(Col from_col, Rank from_rank, Col to_col,
 }
 
 /* Find knight moves to the given square. */
-static Boolean find_single_knight_move(Col to_col, Rank to_rank, Colour colour,
-                                       const Board *board) {
+static bool find_single_knight_move(Col to_col, Rank to_rank, Colour colour,
+                                    const Board *board) {
   int to_r = RankConvert(to_rank);
   int to_c = ColConvert(to_col);
   unsigned ix;
   Piece target_piece = MAKE_COLOURED_PIECE(colour, KNIGHT);
-  Boolean found = FALSE;
+  bool found = false;
 
   /* Pick up pairs of offsets from to_r,to_c to look for a Knight of
    * the right colour.
@@ -772,19 +772,19 @@ static Boolean find_single_knight_move(Col to_col, Rank to_rank, Colour colour,
     int c = Knight_moves[ix + 1] + to_c;
 
     if (board->board[r][c] == target_piece) {
-      found = TRUE;
+      found = true;
     }
   }
   return found;
 }
 
 /* See if there is at least one bishop move to the given square. */
-static Boolean find_single_bishop_move(Col to_col, Rank to_rank, Colour colour,
-                                       const Board *board) {
+static bool find_single_bishop_move(Col to_col, Rank to_rank, Colour colour,
+                                    const Board *board) {
   int to_r = RankConvert(to_rank);
   int to_c = ColConvert(to_col);
   Piece target_piece = MAKE_COLOURED_PIECE(colour, BISHOP);
-  Boolean found = FALSE;
+  bool found = false;
 
   /* Pick up pairs of offsets from to_r,to_c to look for a Bishop of
    * the right colour.
@@ -801,19 +801,19 @@ static Boolean find_single_bishop_move(Col to_col, Rank to_rank, Colour colour,
     } while (board->board[r][c] == EMPTY);
 
     if (board->board[r][c] == target_piece) {
-      found = TRUE;
+      found = true;
     }
   }
   return found;
 }
 
 /* Find rook moves to the given square. */
-static Boolean find_single_rook_move(Col to_col, Rank to_rank, Colour colour,
-                                     const Board *board) {
+static bool find_single_rook_move(Col to_col, Rank to_rank, Colour colour,
+                                  const Board *board) {
   int to_r = RankConvert(to_rank);
   int to_c = ColConvert(to_col);
   Piece target_piece = MAKE_COLOURED_PIECE(colour, ROOK);
-  Boolean found = FALSE;
+  bool found = false;
 
   /* Pick up pairs of offsets from to_r,to_c to look for a Rook of
    * the right colour.
@@ -830,19 +830,19 @@ static Boolean find_single_rook_move(Col to_col, Rank to_rank, Colour colour,
     } while (board->board[r][c] == EMPTY);
 
     if (board->board[r][c] == target_piece) {
-      found = TRUE;
+      found = true;
     }
   }
   return found;
 }
 
 /* Find queen moves to the given square. */
-static Boolean find_single_queen_move(Col to_col, Rank to_rank, Colour colour,
-                                      const Board *board) {
+static bool find_single_queen_move(Col to_col, Rank to_rank, Colour colour,
+                                   const Board *board) {
   int to_r = RankConvert(to_rank);
   int to_c = ColConvert(to_col);
   Piece target_piece = MAKE_COLOURED_PIECE(colour, QUEEN);
-  Boolean found = FALSE;
+  bool found = false;
 
   /* Pick up pairs of offsets from to_r,to_c to look for a Queen of
    * the right colour.
@@ -859,20 +859,20 @@ static Boolean find_single_queen_move(Col to_col, Rank to_rank, Colour colour,
     } while (board->board[r][c] == EMPTY);
 
     if (board->board[r][c] == target_piece) {
-      found = TRUE;
+      found = true;
     }
   }
   return found;
 }
 
 /* Find King moves to the given square. */
-static Boolean find_single_king_move(Col to_col, Rank to_rank, Colour colour,
-                                     const Board *board) {
+static bool find_single_king_move(Col to_col, Rank to_rank, Colour colour,
+                                  const Board *board) {
   int to_r = RankConvert(to_rank);
   int to_c = ColConvert(to_col);
   Piece target_piece = MAKE_COLOURED_PIECE(colour, KING);
   /* Store once the single King is found. */
-  Boolean found = FALSE;
+  bool found = false;
 
   /* Pick up pairs of offsets from to_r,to_c to look for a King of
    * the right colour.
@@ -882,14 +882,14 @@ static Boolean find_single_king_move(Col to_col, Rank to_rank, Colour colour,
     int c = King_moves[ix + 1] + to_c;
 
     if (board->board[r][c] == target_piece) {
-      found = TRUE;
+      found = true;
     }
   }
   return found;
 }
 
 /* Return true if the king of the given colour is
- * in check on the board, FALSE otherwise.
+ * in check on the board, false otherwise.
  */
 CheckStatus king_is_in_check(const Board *board, Colour king_colour) {
   /* Assume that there is a check. */
@@ -994,10 +994,9 @@ MovePair *exclude_checks(
 /* We must exclude the possibility of the king passing
  * through check, or castling out of it.
  */
-static Boolean exclude_castling_across_checks(Col king_start_col,
-                                              Col king_end_col, Colour colour,
-                                              const Board *board) {
-  Boolean Ok = TRUE;
+static bool exclude_castling_across_checks(Col king_start_col, Col king_end_col,
+                                           Colour colour, const Board *board) {
+  bool Ok = true;
   MovePair *move = malloc_move();
   Rank rank = (colour == WHITE) ? FIRSTRANK : LASTRANK;
   int direction = king_end_col >= king_start_col ? 1 : -1;
@@ -1013,7 +1012,7 @@ static Boolean exclude_castling_across_checks(Col king_start_col,
     move->to_rank = rank;
     move = exclude_checks(KING, colour, move, board);
     if (move == NULL) {
-      Ok = FALSE;
+      Ok = false;
     }
   }
   if (move != NULL) {
@@ -1036,17 +1035,17 @@ static MovePair *exclude_moves(Piece piece, Colour colour, Col from_col,
     MovePair *move, *temp;
 
     for (move = possibles; move != NULL;) {
-      Boolean excluded = FALSE;
+      bool excluded = false;
 
       if (from_col != 0) {
         /* The from_col is specified. */
         if (move->from_col != from_col) {
-          excluded = TRUE;
+          excluded = true;
         }
       }
       if ((from_rank != 0) && !excluded) {
         if (move->from_rank != from_rank) {
-          excluded = TRUE;
+          excluded = true;
         }
       }
       temp = move;
@@ -1075,14 +1074,14 @@ static MovePair *exclude_moves(Piece piece, Colour colour, Col from_col,
  * to disambiguate pawn moves.  E.g. with Black pawns on c4 and c5 after
  * White move 1. d4 a reply 1... cdep will be rejected as ambiguous.
  */
-static Boolean pawn_move(Move *move_details, Colour colour, Board *board) {
+static bool pawn_move(Move *move_details, Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
   Rank to_rank = move_details->to_rank;
   /* Find the basic set of moves that match the move_details criteria. */
   MovePair *move_list;
-  Boolean Ok = TRUE;
+  bool Ok = true;
 
   /* Make sure that the col values are consistent with a pawn move. */
   if ((from_col != '\0') && (to_col != '\0') &&
@@ -1091,10 +1090,10 @@ static Boolean pawn_move(Move *move_details, Colour colour, Board *board) {
       /* Capture. */
       (from_col != (to_col + 1)) && (from_col != (to_col - 1))) {
     /* Inconsistent. */
-    Ok = FALSE;
+    Ok = false;
   } else if ((move_list = find_pawn_moves(from_col, from_rank, to_col, to_rank,
                                           colour, board)) == NULL) {
-    Ok = FALSE;
+    Ok = false;
   } else {
     /* Exclude any moves that leave the king in check, or are disambiguate
      * by from_information.
@@ -1113,25 +1112,25 @@ static Boolean pawn_move(Move *move_details, Colour colour, Board *board) {
         move_details->to_rank = move_list->to_rank;
       } else {
         /* Ambiguous. */
-        Ok = FALSE;
+        Ok = false;
       }
       free_move_pair_list(move_list);
     } else {
       /* Excluded. */
-      Ok = FALSE;
+      Ok = false;
     }
   }
   return Ok;
 }
 
 /* Make a pawn move that involves an explicit promotion to promoted_piece. */
-static Boolean promote(Move *move_details, Colour colour, Board *board) {
+static bool promote(Move *move_details, Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
   Rank to_rank = move_details->to_rank;
   MovePair *move_list;
-  Boolean Ok = FALSE;
+  bool Ok = false;
 
   if (to_rank == '\0') {
     /* We can fill this in. */
@@ -1159,7 +1158,7 @@ static Boolean promote(Move *move_details, Colour colour, Board *board) {
         move_details->from_rank = move_list->from_rank;
         move_details->to_col = move_list->to_col;
         move_details->to_rank = move_list->to_rank;
-        Ok = TRUE;
+        Ok = true;
       } else {
         fprintf(GlobalState.logfile, "Ambiguous pawn move to %c%c\n", to_col,
                 to_rank);
@@ -1176,7 +1175,7 @@ static Boolean promote(Move *move_details, Colour colour, Board *board) {
 /* Make a knight move, indicated by move_details.
  * This may result in further information being added to move_details.
  */
-static Boolean knight_move(Move *move_details, Colour colour, Board *board) {
+static bool knight_move(Move *move_details, Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1185,7 +1184,7 @@ static Boolean knight_move(Move *move_details, Colour colour, Board *board) {
   int to_c = ColConvert(to_col);
   MovePair *move_list = find_knight_moves(to_col, to_rank, colour, board);
   /* Assume everything will be ok. */
-  Boolean Ok = TRUE;
+  bool Ok = true;
 
   move_list =
       exclude_moves(KNIGHT, colour, from_col, from_rank, move_list, board);
@@ -1193,7 +1192,7 @@ static Boolean knight_move(Move *move_details, Colour colour, Board *board) {
   if (move_list == NULL) {
     fprintf(GlobalState.logfile, "No knight move possible to %c%c.\n", to_col,
             to_rank);
-    Ok = FALSE;
+    Ok = false;
   } else if (move_list->next == NULL) {
     /* Only one possible.  Check for legality. */
     Piece occupant = board->board[to_r][to_c];
@@ -1205,14 +1204,14 @@ static Boolean knight_move(Move *move_details, Colour colour, Board *board) {
     } else {
       fprintf(GlobalState.logfile,
               "Knight destination square %c%c is illegal.\n", to_col, to_rank);
-      Ok = FALSE;
+      Ok = false;
     }
     free_move_pair(move_list);
   } else {
     fprintf(GlobalState.logfile, "Ambiguous knight move to %c%c.\n", to_col,
             to_rank);
     free_move_pair_list(move_list);
-    Ok = FALSE;
+    Ok = false;
   }
   return Ok;
 }
@@ -1220,7 +1219,7 @@ static Boolean knight_move(Move *move_details, Colour colour, Board *board) {
 /* Make a bishop move, indicated by move_details.
  * This may result in further information being added to move_details.
  */
-static Boolean bishop_move(Move *move_details, Colour colour, Board *board) {
+static bool bishop_move(Move *move_details, Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1229,7 +1228,7 @@ static Boolean bishop_move(Move *move_details, Colour colour, Board *board) {
   int to_c = ColConvert(to_col);
   MovePair *move_list = find_bishop_moves(to_col, to_rank, colour, board);
   /* Assume that it is ok. */
-  Boolean Ok = TRUE;
+  bool Ok = true;
 
   move_list =
       exclude_moves(BISHOP, colour, from_col, from_rank, move_list, board);
@@ -1237,7 +1236,7 @@ static Boolean bishop_move(Move *move_details, Colour colour, Board *board) {
   if (move_list == NULL) {
     fprintf(GlobalState.logfile, "No bishop move possible to %c%c.\n", to_col,
             to_rank);
-    Ok = FALSE;
+    Ok = false;
   } else if (move_list->next == NULL) {
     /* Only one possible.  Check for legality. */
     Piece occupant = board->board[to_r][to_c];
@@ -1250,14 +1249,14 @@ static Boolean bishop_move(Move *move_details, Colour colour, Board *board) {
       fprintf(GlobalState.logfile,
               "Bishop's destination square %c%c is illegal.\n", to_col,
               to_rank);
-      Ok = FALSE;
+      Ok = false;
     }
     free_move_pair(move_list);
   } else {
     fprintf(GlobalState.logfile, "Ambiguous bishop move to %c%c.\n", to_col,
             to_rank);
     free_move_pair_list(move_list);
-    Ok = FALSE;
+    Ok = false;
   }
   return Ok;
 }
@@ -1265,7 +1264,7 @@ static Boolean bishop_move(Move *move_details, Colour colour, Board *board) {
 /* Make a rook move, indicated by move_details.
  * This may result in further information being added to move_details.
  */
-static Boolean rook_move(Move *move_details, Colour colour, Board *board) {
+static bool rook_move(Move *move_details, Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1274,19 +1273,19 @@ static Boolean rook_move(Move *move_details, Colour colour, Board *board) {
   int to_c = ColConvert(to_col);
   MovePair *move_list = find_rook_moves(to_col, to_rank, colour, board);
   /* Assume that it is ok. */
-  Boolean Ok = TRUE;
+  bool Ok = true;
 
   if (move_list == NULL) {
     fprintf(GlobalState.logfile, "No rook move possible to %c%c.\n", to_col,
             to_rank);
-    Ok = FALSE;
+    Ok = false;
   } else {
     move_list =
         exclude_moves(ROOK, colour, from_col, from_rank, move_list, board);
 
     if (move_list == NULL) {
       fprintf(GlobalState.logfile, "Indicated rook move is excluded.\n");
-      Ok = FALSE;
+      Ok = false;
     } else if (move_list->next == NULL) {
       /* Only one possible.  Check for legality. */
       Piece occupant = board->board[to_r][to_c];
@@ -1299,14 +1298,14 @@ static Boolean rook_move(Move *move_details, Colour colour, Board *board) {
         fprintf(GlobalState.logfile,
                 "Rook's destination square %c%c is illegal.\n", to_col,
                 to_rank);
-        Ok = FALSE;
+        Ok = false;
       }
       free_move_pair(move_list);
     } else {
       fprintf(GlobalState.logfile, "Ambiguous rook move to %c%c.\n", to_col,
               to_rank);
       free_move_pair_list(move_list);
-      Ok = FALSE;
+      Ok = false;
     }
   }
   return Ok;
@@ -1315,7 +1314,7 @@ static Boolean rook_move(Move *move_details, Colour colour, Board *board) {
 /* Find a queen move indicated by move_details.
  * This may result in further information being added to move_details.
  */
-static Boolean queen_move(Move *move_details, Colour colour, Board *board) {
+static bool queen_move(Move *move_details, Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1324,7 +1323,7 @@ static Boolean queen_move(Move *move_details, Colour colour, Board *board) {
   int to_c = ColConvert(to_col);
   MovePair *move_list = find_queen_moves(to_col, to_rank, colour, board);
   /* Assume that it is ok. */
-  Boolean Ok = TRUE;
+  bool Ok = true;
 
   move_list =
       exclude_moves(QUEEN, colour, from_col, from_rank, move_list, board);
@@ -1332,7 +1331,7 @@ static Boolean queen_move(Move *move_details, Colour colour, Board *board) {
   if (move_list == NULL) {
     fprintf(GlobalState.logfile, "No queen move possible to %c%c.\n", to_col,
             to_rank);
-    Ok = FALSE;
+    Ok = false;
   } else if (move_list->next == NULL) {
     /* Only one possible.  Check for legality. */
     Piece occupant = board->board[to_r][to_c];
@@ -1344,14 +1343,14 @@ static Boolean queen_move(Move *move_details, Colour colour, Board *board) {
     } else {
       fprintf(GlobalState.logfile,
               "Queen's destination square %c%c is illegal.\n", to_col, to_rank);
-      Ok = FALSE;
+      Ok = false;
     }
     free_move_pair(move_list);
   } else {
     fprintf(GlobalState.logfile, "Ambiguous queen move to %c%c.\n", to_col,
             to_rank);
     free_move_pair_list(move_list);
-    Ok = FALSE;
+    Ok = false;
   }
   return Ok;
 }
@@ -1362,7 +1361,7 @@ static Boolean queen_move(Move *move_details, Colour colour, Board *board) {
  * Return \0 if the King cannot be found.
  */
 Col find_castling_king_col(Colour colour, const Board *board) {
-  Boolean found = FALSE;
+  bool found = false;
   int king_r;
   Piece coloured_king = MAKE_COLOURED_PIECE(colour, KING);
 
@@ -1380,7 +1379,7 @@ Col find_castling_king_col(Colour colour, const Board *board) {
     Col king_col = FIRSTCOL;
     while (!found && king_col <= LASTCOL) {
       if ((board->board[king_r][ColConvert(king_col)] == coloured_king)) {
-        found = TRUE;
+        found = true;
       } else {
         king_col++;
       }
@@ -1425,9 +1424,9 @@ Col find_castling_rook_col(Colour colour, const Board *board,
 }
 
 /* Can colour castle in the indicated direction? */
-static Boolean can_castle(MoveClass castling, Colour colour,
-                          const Board *board) { /* Assume failure. */
-  Boolean Ok = FALSE;
+static bool can_castle(MoveClass castling, Colour colour,
+                       const Board *board) { /* Assume failure. */
+  bool Ok = false;
   Rank king_rank;
   Col king_col;
   Col rook_col;
@@ -1444,7 +1443,7 @@ static Boolean can_castle(MoveClass castling, Colour colour,
   }
 
   if (!Ok) {
-    return FALSE;
+    return false;
   }
 
   /* Find the king. */
@@ -1454,7 +1453,7 @@ static Boolean can_castle(MoveClass castling, Colour colour,
 
   Ok = king_col != '\0' && rook_col != '\0';
   if (!Ok) {
-    return FALSE;
+    return false;
   }
 
   /* It is potentially permitted. */
@@ -1472,7 +1471,7 @@ static Boolean can_castle(MoveClass castling, Colour colour,
     /* Check for clear spaces for the king. */
     int direction = king_final_c > king_c ? 1 : -1;
     int next_c = king_c + direction;
-    Boolean check_again = TRUE;
+    bool check_again = true;
     while (Ok && check_again) {
       check_again = next_c != king_final_c;
       if (board->board[king_r][next_c] == EMPTY) {
@@ -1480,7 +1479,7 @@ static Boolean can_castle(MoveClass castling, Colour colour,
         /* Permitted. */
       } else {
         /* Blocked. */
-        Ok = FALSE;
+        Ok = false;
       }
       next_c += direction;
     }
@@ -1489,7 +1488,7 @@ static Boolean can_castle(MoveClass castling, Colour colour,
     /* Check for clear spaces for the rook. */
     int direction = rook_final_c > rook_c ? 1 : -1;
     int next_c = rook_c + direction;
-    Boolean check_again = TRUE;
+    bool check_again = true;
     while (Ok && check_again) {
       check_again = next_c != rook_final_c;
       if (board->board[king_r][next_c] == EMPTY) {
@@ -1498,7 +1497,7 @@ static Boolean can_castle(MoveClass castling, Colour colour,
         /* Permitted. */
       } else {
         /* Blocked. */
-        Ok = FALSE;
+        Ok = false;
       }
       next_c += direction;
     }
@@ -1507,10 +1506,10 @@ static Boolean can_castle(MoveClass castling, Colour colour,
   if (Ok) {
     if (exclude_castling_across_checks(
             king_col, castling == KINGSIDE_CASTLE ? 'g' : 'c', colour, board)) {
-      Ok = TRUE;
+      Ok = true;
     } else {
       /* Can't castle across check. */
-      Ok = FALSE;
+      Ok = false;
     }
   } else {
     /* Kingside castling is blocked. */
@@ -1519,9 +1518,8 @@ static Boolean can_castle(MoveClass castling, Colour colour,
 }
 
 /* Castle king side. */
-static Boolean kingside_castle(Move *move_details, Colour colour,
-                               Board *board) {
-  Boolean Ok;
+static bool kingside_castle(Move *move_details, Colour colour, Board *board) {
+  bool Ok;
 
   if (can_castle(KINGSIDE_CASTLE, colour, board)) {
     Rank rank = colour == WHITE ? FIRSTRANK : LASTRANK;
@@ -1534,18 +1532,17 @@ static Boolean kingside_castle(Move *move_details, Colour colour,
      */
     move_details->to_col = 'g';
     move_details->to_rank = rank;
-    Ok = TRUE;
+    Ok = true;
   } else {
     fprintf(GlobalState.logfile, "Kingside castling is forbidden to %s.\n",
             colour == WHITE ? "White" : "Black");
-    Ok = FALSE;
+    Ok = false;
   }
   return Ok;
 }
 
-static Boolean queenside_castle(Move *move_details, Colour colour,
-                                Board *board) {
-  Boolean Ok;
+static bool queenside_castle(Move *move_details, Colour colour, Board *board) {
+  bool Ok;
 
   if (can_castle(QUEENSIDE_CASTLE, colour, board)) {
     Rank rank = colour == WHITE ? FIRSTRANK : LASTRANK;
@@ -1558,11 +1555,11 @@ static Boolean queenside_castle(Move *move_details, Colour colour,
      */
     move_details->to_col = 'c';
     move_details->to_rank = rank;
-    Ok = TRUE;
+    Ok = true;
   } else {
     fprintf(GlobalState.logfile, "Queenside castling is forbidden to %s.\n",
             colour == WHITE ? "White" : "Black");
-    Ok = FALSE;
+    Ok = false;
   }
   return Ok;
 }
@@ -1570,7 +1567,7 @@ static Boolean queenside_castle(Move *move_details, Colour colour,
 /* Move the king according to move_details.
  * This may result in further information being added to move_details.
  */
-static Boolean king_move(Move *move_details, Colour colour, Board *board) {
+static bool king_move(Move *move_details, Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1578,12 +1575,12 @@ static Boolean king_move(Move *move_details, Colour colour, Board *board) {
   /* Find all possible king moves to the destination squares. */
   MovePair *move_list = find_king_moves(to_col, to_rank, colour, board);
   /* Assume that it is ok. */
-  Boolean Ok = TRUE;
+  bool Ok = true;
 
   if (move_list == NULL) {
     fprintf(GlobalState.logfile, "No king move possible to %c%c.\n", to_col,
             to_rank);
-    Ok = FALSE;
+    Ok = false;
   } else {
     /* Check for legality. */
     int to_r = RankConvert(to_rank);
@@ -1595,7 +1592,7 @@ static Boolean king_move(Move *move_details, Colour colour, Board *board) {
       /* @@@ Strictly speaking, we should check that the Variant tag
        * is set for this to be a sensible move.
        */
-      Boolean kingside;
+      bool kingside;
       if (colour == WHITE) {
         kingside = move_list->to_col == board->WKingCastle;
       } else {
@@ -1616,7 +1613,7 @@ static Boolean king_move(Move *move_details, Colour colour, Board *board) {
       if (move_list == NULL) {
         fprintf(GlobalState.logfile, "No king move possible to %c%c.\n", to_col,
                 to_rank);
-        Ok = FALSE;
+        Ok = false;
       } else if (occupant == EMPTY) {
         move_details->from_col = move_list->from_col;
         move_details->from_rank = move_list->from_rank;
@@ -1627,7 +1624,7 @@ static Boolean king_move(Move *move_details, Colour colour, Board *board) {
         fprintf(GlobalState.logfile,
                 "King's destination square %c%c is illegal.\n", to_col,
                 to_rank);
-        Ok = FALSE;
+        Ok = false;
       }
     }
     if (move_list != NULL) {
@@ -1651,9 +1648,8 @@ static Boolean king_move(Move *move_details, Colour colour, Board *board) {
  * program, for instance.
  * NB: this function does not determine whether or not the move gives check.
  */
-Boolean determine_move_details(Colour colour, Move *move_details,
-                               Board *board) {
-  Boolean Ok = FALSE;
+bool determine_move_details(Colour colour, Move *move_details, Board *board) {
+  bool Ok = false;
 
   if (move_details == NULL) {
     /* Shouldn't happen. */
@@ -1667,12 +1663,12 @@ Boolean determine_move_details(Colour colour, Move *move_details,
     /* Non-standard PGN.
      * Nothing more to be done.
      */
-    Ok = TRUE;
+    Ok = true;
   } else {
     /* We have something -- normal case. */
     const unsigned char *move = move_details->move;
     MoveClass class = move_details->class;
-    Boolean move_handled = FALSE;
+    bool move_handled = false;
 
     /* A new piece on promotion. */
     move_details->promoted_piece = EMPTY;
@@ -1756,12 +1752,12 @@ Boolean determine_move_details(Colour colour, Move *move_details,
             /* Just in case the original designation was incorrect. */
             move_details->class = class = PAWN_MOVE;
           }
-          move_handled = TRUE;
+          move_handled = true;
         }
       } else if (class == PAWN_MOVE_WITH_PROMOTION) {
         /* Handle a move involving promotion. */
         Ok = promote(move_details, colour, board);
-        move_handled = TRUE;
+        move_handled = true;
       } else {
         /* Shouldn't get here. */
       }
@@ -1787,7 +1783,7 @@ Boolean determine_move_details(Colour colour, Move *move_details,
               move_details->to_rank = alternative->to_rank;
               move_details->piece_to_move = alternative->piece_to_move;
               free_move_list(alternative);
-              move_handled = TRUE;
+              move_handled = true;
             }
           }
         }
@@ -1822,7 +1818,7 @@ Boolean determine_move_details(Colour colour, Move *move_details,
           Ok = bishop_move(move_details, colour, board);
           break;
         default:
-          Ok = FALSE;
+          Ok = false;
           fprintf(GlobalState.logfile, "Unknown piece move %s\n", move);
           break;
         }
@@ -1836,7 +1832,7 @@ Boolean determine_move_details(Colour colour, Move *move_details,
         Ok = queenside_castle(move_details, colour, board);
         break;
       case UNKNOWN_MOVE:
-        Ok = FALSE;
+        Ok = false;
         break;
       default:
         fprintf(GlobalState.logfile,
@@ -1896,14 +1892,14 @@ static MovePair *generate_single_moves(Colour colour, Piece piece,
     int r = Piece_moves[ix] + from_r;
     int c = Piece_moves[ix + 1] + from_c;
     Piece occupant = board->board[r][c];
-    Boolean Ok = FALSE;
+    bool Ok = false;
 
     if (occupant == OFF) {
       /* Not a valid move. */
     } else if (board->board[r][c] == EMPTY) {
-      Ok = TRUE;
+      Ok = true;
     } else if (EXTRACT_COLOUR(occupant) == target_colour) {
-      Ok = TRUE;
+      Ok = true;
     } else {
     }
     if (Ok) {
@@ -2039,11 +2035,11 @@ static MovePair *generate_pawn_moves(Colour colour, const Board *board,
  * Excepted from this are the castling moves (not legal whilst in check)
  * and underpromotions (inadequate in thwarting a check).
  */
-Boolean king_is_in_checkmate(Colour colour, Board *board) {
+bool king_is_in_checkmate(Colour colour, Board *board) {
   Rank rank;
   Col col;
   MovePair *moves = NULL;
-  Boolean in_checkmate = FALSE;
+  bool in_checkmate = false;
 
   /* Search the board for pieces of the right colour.
    * Keep going until we have exhausted all pieces, or until
@@ -2085,7 +2081,7 @@ Boolean king_is_in_checkmate(Colour colour, Board *board) {
     /* No checkmate.  Free the move list. */
     free_move_pair_list(moves);
   } else {
-    in_checkmate = TRUE;
+    in_checkmate = true;
   }
   return in_checkmate;
 }
@@ -2235,9 +2231,9 @@ MovePair *find_all_moves(const Board *board, Colour colour) {
   return all_moves;
 }
 
-/* Return TRUE if there is at least one move on the given board for colour. */
-Boolean at_least_one_move(const Board *board, Colour colour) {
-  Boolean move_found = FALSE;
+/* Return true if there is at least one move on the given board for colour. */
+bool at_least_one_move(const Board *board, Colour colour) {
+  bool move_found = false;
 
   /* Pick up each piece of the required colour. */
   for (Rank rank = LASTRANK; rank >= FIRSTRANK && !move_found; rank--) {
@@ -2254,22 +2250,22 @@ Boolean at_least_one_move(const Board *board, Colour colour) {
         case KING:
           moves = generate_single_moves(colour, piece, board, col, rank);
           if (moves != NULL) {
-            move_found = TRUE;
+            move_found = true;
             free_move_pair_list(moves);
           }
           /* Add any castling, as this is not covered
            * by GenerateSingleMoves.
            */
           else if (can_castle(KINGSIDE_CASTLE, colour, board)) {
-            move_found = TRUE;
+            move_found = true;
           } else if (can_castle(QUEENSIDE_CASTLE, colour, board)) {
-            move_found = TRUE;
+            move_found = true;
           }
           break;
         case KNIGHT:
           moves = generate_single_moves(colour, piece, board, col, rank);
           if (moves != NULL) {
-            move_found = TRUE;
+            move_found = true;
             free_move_pair_list(moves);
           }
           break;
@@ -2278,14 +2274,14 @@ Boolean at_least_one_move(const Board *board, Colour colour) {
         case BISHOP:
           moves = generate_multiple_moves(colour, piece, board, col, rank);
           if (moves != NULL) {
-            move_found = TRUE;
+            move_found = true;
             free_move_pair_list(moves);
           }
           break;
         case PAWN:
           moves = generate_pawn_moves(colour, board, col, rank);
           if (moves != NULL) {
-            move_found = TRUE;
+            move_found = true;
             free_move_pair_list(moves);
           }
           break;

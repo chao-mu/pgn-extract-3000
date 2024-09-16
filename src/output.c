@@ -26,13 +26,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "output.h"
 #include "apply.h"
-#include "bool.h"
+
 #include "defs.h"
 #include "grammar.h"
 #include "lex.h"
 #include "mymalloc.h"
+#include "output.h"
 #include "taglist.h"
 #include "tokens.h"
 #include "typedef.h"
@@ -57,36 +57,36 @@ static size_t line_length = 0;
 /* The buffer in which each output line of a game is built. */
 static char *output_line = NULL;
 
-static Boolean print_move(FILE *outputfile, unsigned move_number,
-                          Boolean print_move_number, Boolean white_to_move,
-                          const Move *move_details);
-static Boolean print_items_following_move(FILE *outputfile,
-                                          const Move *move_details,
-                                          unsigned move_number,
-                                          Boolean white_to_move);
+static bool print_move(FILE *outputfile, unsigned move_number,
+                       bool print_move_number, bool white_to_move,
+                       const Move *move_details);
+static bool print_items_following_move(FILE *outputfile,
+                                       const Move *move_details,
+                                       unsigned move_number,
+                                       bool white_to_move);
 static void output_STR(FILE *outfp, char **Tags);
 static void show_tags(FILE *outfp, char **Tags, int tags_length);
 static char promoted_piece_letter(Piece piece);
 static void print_algebraic_game(Game *current_game, FILE *outputfile,
-                                 unsigned move_number, Boolean white_to_move,
+                                 unsigned move_number, bool white_to_move,
                                  Board *final_board);
 static void print_EPD_game(Game *current_game, FILE *outputfile,
-                           unsigned move_number, Boolean white_to_move,
+                           unsigned move_number, bool white_to_move,
                            Board *final_board);
 static void print_FEN_game(Game *current_game, FILE *outputfile,
-                           unsigned move_number, Boolean white_to_move,
+                           unsigned move_number, bool white_to_move,
                            Board *final_board);
 static void print_EPD_move_list(Game *current_game, FILE *outputfile,
-                                unsigned move_number, Boolean white_to_move,
+                                unsigned move_number, bool white_to_move,
                                 Board *final_board);
 static void print_FEN_move_list(Game *current_game, FILE *outputfile,
-                                unsigned move_number, Boolean white_to_move,
+                                unsigned move_number, bool white_to_move,
                                 Board *final_board);
 static const char *build_FEN_comment(const Board *board);
 static void add_hashcode_tag(const Game *game);
 static unsigned count_single_move_ply(const Move *move_details,
-                                      Boolean count_variations);
-static unsigned count_move_list_ply(Move *move_list, Boolean count_variations);
+                                      bool count_variations);
+static unsigned count_move_list_ply(Move *move_list, bool count_variations);
 static void print_space_separated_str(FILE *outputfile, const char *str);
 static void start_comment(FILE *outputfile);
 static void end_comment(FILE *outputfile);
@@ -235,7 +235,7 @@ static const char *select_tag_string(TagName tag) {
   return tag_string;
 }
 
-static Boolean is_STR(TagName tag) {
+static bool is_STR(TagName tag) {
   switch (tag) {
   case EVENT_TAG:
   case SITE_TAG:
@@ -244,9 +244,9 @@ static Boolean is_STR(TagName tag) {
   case WHITE_TAG:
   case BLACK_TAG:
   case RESULT_TAG:
-    return TRUE;
+    return true;
   default:
-    return FALSE;
+    return false;
   }
 }
 
@@ -476,11 +476,11 @@ static void print_comment_list(FILE *fp, CommentList *comment_list) {
 }
 
 static void print_move_list(FILE *outputfile, unsigned move_number,
-                            Boolean white_to_move, const Move *move_details,
+                            bool white_to_move, const Move *move_details,
                             const Board *final_board) {
-  Boolean print_move_number = TRUE;
+  bool print_move_number = true;
   const Move *move = move_details;
-  Boolean keepPrinting;
+  bool keepPrinting;
   int plies;
   /* Keep track of the number of consecutive quiescent moves:
    * captures, Checks and promotion are non-quiescent.
@@ -496,9 +496,9 @@ static void print_move_list(FILE *outputfile, unsigned move_number,
   }
   if (GlobalState.output_ply_limit >= 0 &&
       plies > GlobalState.output_ply_limit) {
-    keepPrinting = FALSE;
+    keepPrinting = false;
   } else {
-    keepPrinting = TRUE;
+    keepPrinting = true;
   }
 
   while (move != NULL && keepPrinting) {
@@ -540,10 +540,10 @@ static void print_move_list(FILE *outputfile, unsigned move_number,
     if (move->move[0] != '\0') {
       /* A genuine move was just printed, rather than a comment. */
       if (white_to_move) {
-        white_to_move = FALSE;
+        white_to_move = false;
       } else {
         move_number++;
-        white_to_move = TRUE;
+        white_to_move = true;
       }
       plies++;
       if (move->captured_piece != EMPTY || move->check_status != NOCHECK ||
@@ -555,7 +555,7 @@ static void print_move_list(FILE *outputfile, unsigned move_number,
       if (GlobalState.output_ply_limit >= 0 &&
           plies > GlobalState.output_ply_limit &&
           quiescense_count >= GlobalState.quiescence_threshold) {
-        keepPrinting = FALSE;
+        keepPrinting = false;
       }
     }
     if (GlobalState.json_format) {
@@ -597,18 +597,18 @@ static void print_move_list(FILE *outputfile, unsigned move_number,
 }
 
 /* Output the current move along with associated information.
- * Return TRUE if either a variation or comment was printed,
- * FALSE otherwise.
+ * Return true if either a variation or comment was printed,
+ * false otherwise.
  * This is needed to determine whether a new move number
  * is to be printed after a variation.
  */
 /* A length to accommodate move numbers. */
 #define SMALL_MOVE_NUMBER_LENGTH (20)
 
-static Boolean print_move(FILE *outputfile, unsigned move_number,
-                          Boolean print_move_number, Boolean white_to_move,
-                          const Move *move_details) {
-  Boolean something_printed = FALSE;
+static bool print_move(FILE *outputfile, unsigned move_number,
+                       bool print_move_number, bool white_to_move,
+                       const Move *move_details) {
+  bool something_printed = false;
   OutputFormat output_format = GlobalState.output_format;
 
   if (move_details == NULL) {
@@ -814,7 +814,7 @@ static Boolean print_move(FILE *outputfile, unsigned move_number,
       }
       if (print_items_following_move(outputfile, move_details, move_number,
                                      white_to_move)) {
-        something_printed = TRUE;
+        something_printed = true;
       }
     }
   }
@@ -835,18 +835,18 @@ static Boolean print_move(FILE *outputfile, unsigned move_number,
 
 /* Print further information, that may be attached to moves,
  * such as NAGs and comments.
- * Return TRUE if something was printed for non JSON format output.
+ * Return true if something was printed for non JSON format output.
  */
-static Boolean print_items_following_move(FILE *outputfile,
-                                          const Move *move_details,
-                                          unsigned move_number,
-                                          Boolean white_to_move) {
-  Boolean something_printed = FALSE;
+static bool print_items_following_move(FILE *outputfile,
+                                       const Move *move_details,
+                                       unsigned move_number,
+                                       bool white_to_move) {
+  bool something_printed = false;
   Nag *nags = move_details->NAGs;
   Variation *variants = move_details->Variants;
   if (move_details->comment_list != NULL && GlobalState.keep_comments) {
     print_comment_list(outputfile, move_details->comment_list);
-    something_printed = TRUE;
+    something_printed = true;
   }
   if (nags != NULL) {
     /* We don't need to output move numbers after just
@@ -880,7 +880,7 @@ static Boolean print_items_following_move(FILE *outputfile,
         // @@@ JSON option needed.
 
         print_comment_list(outputfile, nags->comments);
-        something_printed = TRUE;
+        something_printed = true;
       }
       nags = nags->next;
     }
@@ -906,7 +906,7 @@ static Boolean print_items_following_move(FILE *outputfile,
 
       print_as_comment(outputfile, evaluation);
       (void)free((void *)evaluation);
-      something_printed = TRUE;
+      something_printed = true;
     }
   }
   if (GlobalState.add_FEN_comments) {
@@ -923,7 +923,7 @@ static Boolean print_items_following_move(FILE *outputfile,
         print_separator(outputfile);
         print_space_separated_str(outputfile, move_details->fen_suffix);
         end_comment(outputfile);
-        something_printed = TRUE;
+        something_printed = true;
       }
     }
   }
@@ -939,7 +939,7 @@ static Boolean print_items_following_move(FILE *outputfile,
       sprintf(hashcode, "%016" PRIx64, move_details->zobrist);
       print_as_comment(outputfile, hashcode);
       (void)free((void *)hashcode);
-      something_printed = TRUE;
+      something_printed = true;
     }
   }
   if (variants != NULL) {
@@ -963,7 +963,7 @@ static Boolean print_items_following_move(FILE *outputfile,
           }
           variants = variants->next;
         }
-        something_printed = TRUE;
+        something_printed = true;
       } else {
         /* Variations are being split so don't output them. */
       }
@@ -977,7 +977,7 @@ static Boolean print_items_following_move(FILE *outputfile,
       while (variants != NULL) {
         if (variants->suffix_comment != NULL) {
           print_comment_list(outputfile, variants->suffix_comment);
-          something_printed = TRUE;
+          something_printed = true;
         }
         variants = variants->next;
       }
@@ -1099,7 +1099,7 @@ static void output_cm_result(const char *result, FILE *outputfile) {
  * This is probably obsolete.
  */
 static void output_cm_game(FILE *outputfile, unsigned move_number,
-                           Boolean white_to_move, const Game *game) {
+                           bool white_to_move, const Game *game) {
   const Move *move = game->moves;
 
   if ((move_number != 1) || (!white_to_move)) {
@@ -1124,11 +1124,11 @@ static void output_cm_game(FILE *outputfile, unsigned move_number,
       if (white_to_move) {
         fprintf(outputfile, "%*u. ", MOVE_NUMBER_WIDTH, move_number);
         fprintf(outputfile, "%*s", -MOVE_WIDTH, move->move);
-        white_to_move = FALSE;
+        white_to_move = false;
       } else {
         fprintf(outputfile, "%*s", -MOVE_WIDTH, move->move);
         move_number++;
-        white_to_move = TRUE;
+        white_to_move = true;
       }
     }
     if ((move->comment_list != NULL) && GlobalState.keep_comments) {
@@ -1187,7 +1187,7 @@ static void output_cm_game(FILE *outputfile, unsigned move_number,
 
 /* Output the current game according to the required output format. */
 void format_game(Game *current_game, FILE *outputfile) {
-  Boolean white_to_move = TRUE;
+  bool white_to_move = true;
   unsigned move_number = 1;
   Board *initial_board;
   /* The final board position, if available. */
@@ -1383,11 +1383,11 @@ static const char *format_epd_game_comment(char **Tags) {
 }
 
 static void print_algebraic_game(Game *current_game, FILE *outputfile,
-                                 unsigned move_number, Boolean white_to_move,
+                                 unsigned move_number, bool white_to_move,
                                  Board *final_board) {
   if (GlobalState.json_format) {
     /* Need to take account of splitting output over multiple files. */
-    Boolean comma_needed;
+    bool comma_needed;
     if (GlobalState.games_per_file == 0) {
       comma_needed = GlobalState.num_games_matched > 1;
     } else {
@@ -1471,7 +1471,7 @@ static void print_algebraic_game(Game *current_game, FILE *outputfile,
 }
 
 static void print_EPD_move_list(Game *current_game, FILE *outputfile,
-                                unsigned move_number, Boolean white_to_move,
+                                unsigned move_number, bool white_to_move,
                                 Board *initial_board) {
   const char *game_comment;
 
@@ -1514,11 +1514,11 @@ static void print_EPD_move_list(Game *current_game, FILE *outputfile,
 }
 
 static void print_FEN_move_list(Game *current_game, FILE *outputfile,
-                                unsigned move_number, Boolean white_to_move,
+                                unsigned move_number, bool white_to_move,
                                 Board *initial_board) {
   Board *board = initial_board;
   Move *move = current_game->moves;
-  Boolean keepPrinting;
+  bool keepPrinting;
   /* Work out the ply depth. */
   int plies = 2 * (move_number)-1;
 
@@ -1527,9 +1527,9 @@ static void print_FEN_move_list(Game *current_game, FILE *outputfile,
   }
   if (GlobalState.output_ply_limit >= 0 &&
       plies > GlobalState.output_ply_limit) {
-    keepPrinting = FALSE;
+    keepPrinting = false;
   } else {
-    keepPrinting = TRUE;
+    keepPrinting = true;
     const char *FEN_string = get_FEN_string(board);
     fprintf(GlobalState.outputfile, "%s\n", FEN_string);
     free((void *)FEN_string);
@@ -1542,14 +1542,14 @@ static void print_FEN_move_list(Game *current_game, FILE *outputfile,
         fprintf(GlobalState.outputfile, "%s\n", FEN_string);
         free((void *)FEN_string);
       } else {
-        keepPrinting = FALSE;
+        keepPrinting = false;
       }
       /* A genuine move was just printed, rather than a comment. */
       if (white_to_move) {
-        white_to_move = FALSE;
+        white_to_move = false;
       } else {
         move_number++;
-        white_to_move = TRUE;
+        white_to_move = true;
       }
       plies++;
     }
@@ -1558,7 +1558,7 @@ static void print_FEN_move_list(Game *current_game, FILE *outputfile,
 }
 
 static void print_EPD_game(Game *current_game, FILE *outputfile,
-                           unsigned move_number, Boolean white_to_move,
+                           unsigned move_number, bool white_to_move,
                            Board *initial_board) {
   if (!GlobalState.check_only) {
     print_EPD_move_list(current_game, outputfile, move_number, white_to_move,
@@ -1568,7 +1568,7 @@ static void print_EPD_game(Game *current_game, FILE *outputfile,
 }
 
 static void print_FEN_game(Game *current_game, FILE *outputfile,
-                           unsigned move_number, Boolean white_to_move,
+                           unsigned move_number, bool white_to_move,
                            Board *initial_board) {
   if (!GlobalState.check_only) {
     /* Report details on the output. */
@@ -1608,7 +1608,7 @@ static const char *build_FEN_comment(const Board *board) {
  * Include variations if count_variations.
  */
 static unsigned count_single_move_ply(const Move *move_details,
-                                      Boolean count_variations) {
+                                      bool count_variations) {
   unsigned count = 1;
   if (count_variations) {
     Variation *variant = move_details->Variants;
@@ -1624,7 +1624,7 @@ static unsigned count_single_move_ply(const Move *move_details,
  * Count how many plies in the game in total.
  * Include variations if count_variations.
  */
-static unsigned count_move_list_ply(Move *move_list, Boolean count_variations) {
+static unsigned count_move_list_ply(Move *move_list, bool count_variations) {
   unsigned count = 0;
   while (move_list != NULL) {
     count += count_single_move_ply(move_list, count_variations);
@@ -1638,7 +1638,7 @@ static unsigned count_move_list_ply(Move *move_list, Boolean count_variations) {
  * Include variations if count_variations.
  */
 void add_plycount(const Game *game) {
-  unsigned count = count_move_list_ply(game->moves, FALSE);
+  unsigned count = count_move_list_ply(game->moves, false);
   char formatted_count[FORMATTED_NUMBER_SIZE];
   sprintf(formatted_count, "%u", count);
 
@@ -1652,7 +1652,7 @@ void add_plycount(const Game *game) {
  * Count how many plies in the game in total.
  * Include variations if count_variations.
  */
-void add_total_plycount(const Game *game, Boolean count_variations) {
+void add_total_plycount(const Game *game, bool count_variations) {
   unsigned count = count_move_list_ply(game->moves, count_variations);
   char formatted_count[FORMATTED_NUMBER_SIZE];
   sprintf(formatted_count, "%u", count);

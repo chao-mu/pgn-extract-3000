@@ -29,10 +29,9 @@ void free_string_list(StringList *list);
 void init_game_header(void);
 void increase_game_header_tags_length(unsigned new_length);
 void report_details(FILE *outfp);
-void append_comments_to_move(Move *move,CommentList *Comment);
+void append_comments_to_move(Move *move, CommentList *Comment);
 /* The following function is used for linking list items together. */
-StringList *save_string_list_item(StringList *list,const char *str);
+StringList *save_string_list_item(StringList *list, const char *str);
 void free_comment_list(CommentList *comment_list);
 
-#endif	// GRAMMAR_H
-
+#endif // GRAMMAR_H

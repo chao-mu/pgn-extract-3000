@@ -22,10 +22,12 @@
 #ifndef OUTPUT_H
 #define OUTPUT_H
 
-#include "typedef.h"
-#include "taglist.h"
+#include <stdbool.h>
 
-void format_game(Game *current_game,FILE *outputfile);
+#include "taglist.h"
+#include "typedef.h"
+
+void format_game(Game *current_game, FILE *outputfile);
 void print_str(FILE *fp, const char *str);
 void terminate_line(FILE *fp);
 OutputFormat which_output_format(const char *arg);
@@ -33,9 +35,8 @@ const char *output_file_suffix(OutputFormat format);
 void add_to_output_tag_order(TagName tag);
 void set_output_line_length(unsigned max);
 void add_plycount(const Game *game);
-void add_total_plycount(const Game *game, Boolean count_variations);
+void add_total_plycount(const Game *game, bool count_variations);
 /* Provide enough static space to build FEN string. */
 #define FEN_SPACE 100
 
 #endif // OUTPUT_H
-

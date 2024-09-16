@@ -20,7 +20,7 @@
  */
 
 #include "apply.h"
-#include "bool.h"
+
 #include "decode.h"
 #include "defs.h"
 #include "eco.h"
@@ -49,25 +49,22 @@
 #define DEFAULT_POSITIONAL_DEPTH 300
 
 /* Prototypes of functions limited to this file. */
-static Boolean check_move_validity(Game *game_details, Board *board,
-                                   Move *moves, Boolean mainline);
-static Boolean check_variation_validity(const Game *game_details,
-                                        const Board *board,
-                                        Variation *variation);
+static bool check_move_validity(Game *game_details, Board *board, Move *moves,
+                                bool mainline);
+static bool check_variation_validity(const Game *game_details,
+                                     const Board *board, Variation *variation);
 static const char *position_matches(const Board *board);
-static Boolean play_moves(Game *game_details, Board *board, Move *moves,
-                          unsigned max_depth, Boolean check_move_validity,
-                          Boolean mainline);
-static Boolean apply_variations(const Game *game_details, const Board *board,
-                                Variation *variation,
-                                Boolean check_move_validity);
-static Boolean rewrite_variations(const Board *board, Variation *variation);
-static Boolean rewrite_moves(Game *game, Board *board, Move *move_details);
+static bool play_moves(Game *game_details, Board *board, Move *moves,
+                       unsigned max_depth, bool check_move_validity,
+                       bool mainline);
+static bool apply_variations(const Game *game_details, const Board *board,
+                             Variation *variation, bool check_move_validity);
+static bool rewrite_variations(const Board *board, Variation *variation);
+static bool rewrite_moves(Game *game, Board *board, Move *move_details);
 static void build_FEN_components(const Board *board, char *epd,
                                  char *fen_suffix);
 static unsigned plies_in_move_sequence(Move *moves);
-static Boolean drop_plies_from_start(Game *game, Move *moves,
-                                     int plies_to_drop);
+static bool drop_plies_from_start(Game *game, Move *moves, int plies_to_drop);
 #if 0
 static void append_evaluation(Move *move_details, const Board *board);
 static void append_FEN_comment(Move *move_details, const Board *board);
@@ -94,7 +91,7 @@ static const char *output_piece_characters[NUM_PIECE_VALUES] = {
     "?", "?", "P", "N", "B", "R", "Q", "K"};
 
 /* Check whether the given result is valid. */
-static Boolean valid_result(const char *result) {
+static bool valid_result(const char *result) {
   return (strcmp(result, "1-0") == 0) || (strcmp(result, "0-1") == 0) ||
          (strcmp(result, "1/2-1/2") == 0) || (strcmp(result, "*") == 0);
 }
@@ -231,7 +228,7 @@ char coloured_piece_to_SAN_letter(Piece coloured_piece) {
  * the given castling move.
  */
 static Col find_rook_starting_position(const Board *board, Colour colour,
-                                       MoveClass castling, Boolean outermost) {
+                                       MoveClass castling, bool outermost) {
   Rank rank;
   Col col, boundary;
   int direction;
@@ -291,59 +288,59 @@ Board *new_fen_board(const char *fen) {
   Board *new_board = allocate_new_board();
   /* Start with a clear board. */
   static const Board initial_board = {
-    /* Board */
-      .board={{OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
-       {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
-       {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF}},
+      /* Board */
+      .board = {{OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
+                {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
+                {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF}},
       /* Who to move next. */
-      .to_move=WHITE,
+      .to_move = WHITE,
       /* Move number. */
-      .move_number=1,
+      .move_number = 1,
       /* Default castling rights. Support Chess960. */
-      .WKingCastle='h',
-      .WQueenCastle='a',
-      .BKingCastle='h',
-      .BQueenCastle='a',
+      .WKingCastle = 'h',
+      .WQueenCastle = 'a',
+      .BKingCastle = 'h',
+      .BQueenCastle = 'a',
       /* Initial king positions. */
-      .WKingCol='e',
-      .WKingRank=FIRSTRANK,
-      .BKingCol='e',
-      .BKingRank=LASTRANK,
+      .WKingCol = 'e',
+      .WKingRank = FIRSTRANK,
+      .BKingCol = 'e',
+      .BKingRank = LASTRANK,
       /* En Passant rights. */
-      .EnPassant=FALSE,
-      .ep_rank=0,
-      .ep_col=0,
+      .EnPassant = false,
+      .ep_rank = 0,
+      .ep_col = 0,
       /* Initial hash value. */
-      .weak_hash_value=0ul,
+      .weak_hash_value = 0ul,
       /* half-move_clock */
-      .zobrist=0,
-      .halfmove_clock=0,
+      .zobrist = 0,
+      .halfmove_clock = 0,
   };
   Rank rank = LASTRANK;
   Col col;
   const char *fen_char = fen;
-  Boolean Ok = TRUE;
+  bool Ok = true;
   /* In some circumstances we will try to parse the game data,
    * even if there are errors.
    */
-  Boolean try_to_parse_game = FALSE;
+  bool try_to_parse_game = false;
 
   /* Reset the contents of the new board. */
   *new_board = initial_board;
@@ -376,7 +373,7 @@ Board *new_fen_board(const char *fen) {
         col++;
         fen_char++;
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
     } else if (isdigit((int)ch)) {
       if (('1' <= ch) && (ch <= '8')) {
@@ -388,10 +385,10 @@ Board *new_fen_board(const char *fen) {
         if (col <= (LASTCOL + 1)) {
           fen_char++;
         } else {
-          Ok = FALSE;
+          Ok = false;
         }
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
     } else if (ch == '/') {
       /* End of that rank. We should have completely filled the
@@ -402,11 +399,11 @@ Board *new_fen_board(const char *fen) {
         rank--;
         fen_char++;
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
     } else {
       /* Unknown character. */
-      Ok = FALSE;
+      Ok = false;
     }
   }
   /* As we don't print any error messages until the end of the function,
@@ -416,7 +413,7 @@ Board *new_fen_board(const char *fen) {
     /* Find out who is to move. */
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   if (*fen_char == 'w') {
     new_board->to_move = WHITE;
@@ -425,12 +422,12 @@ Board *new_fen_board(const char *fen) {
     new_board->to_move = BLACK;
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   if (*fen_char == ' ') {
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   /* Determine castling rights. */
   if (*fen_char == '-') {
@@ -441,13 +438,13 @@ Board *new_fen_board(const char *fen) {
   } else {
     /* Check to make sure that this section isn't empty. */
     if (*fen_char == ' ') {
-      Ok = FALSE;
+      Ok = false;
     }
 
     /* Accommodate Chess960 notation for castling. */
     if (*fen_char == 'K') {
       new_board->WKingCastle =
-          find_rook_starting_position(new_board, WHITE, KINGSIDE_CASTLE, TRUE);
+          find_rook_starting_position(new_board, WHITE, KINGSIDE_CASTLE, true);
       fen_char++;
     } else if (*fen_char >= 'A' && *fen_char <= 'H') {
       new_board->WKingCastle = tolower(*fen_char);
@@ -457,7 +454,7 @@ Board *new_fen_board(const char *fen) {
     }
     if (*fen_char == 'Q') {
       new_board->WQueenCastle =
-          find_rook_starting_position(new_board, WHITE, QUEENSIDE_CASTLE, TRUE);
+          find_rook_starting_position(new_board, WHITE, QUEENSIDE_CASTLE, true);
       fen_char++;
     } else if (*fen_char >= 'A' && *fen_char <= 'H') {
       new_board->WQueenCastle = tolower(*fen_char);
@@ -467,7 +464,7 @@ Board *new_fen_board(const char *fen) {
     }
     if (*fen_char == 'k') {
       new_board->BKingCastle =
-          find_rook_starting_position(new_board, BLACK, KINGSIDE_CASTLE, TRUE);
+          find_rook_starting_position(new_board, BLACK, KINGSIDE_CASTLE, true);
       fen_char++;
     } else if (*fen_char >= 'a' && *fen_char <= 'h') {
       new_board->BKingCastle = *fen_char;
@@ -477,7 +474,7 @@ Board *new_fen_board(const char *fen) {
     }
     if (*fen_char == 'q') {
       new_board->BQueenCastle =
-          find_rook_starting_position(new_board, BLACK, QUEENSIDE_CASTLE, TRUE);
+          find_rook_starting_position(new_board, BLACK, QUEENSIDE_CASTLE, true);
       fen_char++;
     } else if (*fen_char >= 'a' && *fen_char <= 'h') {
       new_board->BQueenCastle = *fen_char;
@@ -489,13 +486,13 @@ Board *new_fen_board(const char *fen) {
   if (*fen_char == ' ') {
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   /* If we are ok to this point, try to make a best efforts approach
    * to handle the game, even if there are subsequent errors.
    */
   if (Ok) {
-    try_to_parse_game = TRUE;
+    try_to_parse_game = true;
   }
   /* Check for an en-passant square. */
   if (*fen_char == '-') {
@@ -513,22 +510,22 @@ Board *new_fen_board(const char *fen) {
       if (((new_board->to_move == WHITE) && (rank == '6')) ||
           ((new_board->to_move == BLACK) && (rank == '3'))) {
         /* Consistent. */
-        new_board->EnPassant = TRUE;
+        new_board->EnPassant = true;
         new_board->ep_rank = rank;
         new_board->ep_col = col;
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
     } else {
-      Ok = FALSE;
+      Ok = false;
     }
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   if (*fen_char == ' ') {
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   /* Check for half-move count since last pawn move
    * or capture.
@@ -542,12 +539,12 @@ Board *new_fen_board(const char *fen) {
     }
     new_board->halfmove_clock = halfmove_clock;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   if (*fen_char == ' ') {
     fen_char++;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   /* Check for current move number. */
   if (isdigit((int)*fen_char)) {
@@ -564,14 +561,14 @@ Board *new_fen_board(const char *fen) {
     }
     new_board->move_number = move_number;
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   /* Allow trailing space. */
   while (isspace((int)*fen_char)) {
     fen_char++;
   }
   if (*fen_char != '\0') {
-    Ok = FALSE;
+    Ok = false;
   }
   if (Ok) {
     /* Check whether either side is in check and, if so, whether that
@@ -584,8 +581,8 @@ Board *new_fen_board(const char *fen) {
               "Illegal FEN string %s as one side is in check but it is not "
               "their move.\n",
               fen);
-      try_to_parse_game = FALSE;
-      Ok = FALSE;
+      try_to_parse_game = false;
+      Ok = false;
     }
   } else {
     fprintf(GlobalState.logfile, "Illegal FEN string %s at %s\n", fen,
@@ -604,11 +601,11 @@ Board *new_fen_board(const char *fen) {
   return new_board;
 }
 
-/* add_fen_castling is TRUE and castling permissions are absent.
+/* add_fen_castling is true and castling permissions are absent.
  * Liberally assume them based on the King and Rook positions.
  */
 void add_fen_castling(Game *game_details, Board *board) {
-  Boolean added = FALSE;
+  bool added = false;
   /* NB: This is not coded for Chess 960 positions. */
   if (board->WKingCol == 'e' && board->WKingRank == '1') {
     board->WKingCastle = board->board[RankConvert('1')][ColConvert('h')] ==
@@ -619,7 +616,7 @@ void add_fen_castling(Game *game_details, Board *board) {
                                   MAKE_COLOURED_PIECE(WHITE, ROOK)
                               ? 'a'
                               : '\0';
-    added = TRUE;
+    added = true;
   } else {
     board->WKingCastle = '\0';
     board->WQueenCastle = '\0';
@@ -633,7 +630,7 @@ void add_fen_castling(Game *game_details, Board *board) {
                                   MAKE_COLOURED_PIECE(BLACK, ROOK)
                               ? 'a'
                               : '\0';
-    added = TRUE;
+    added = true;
   } else {
     board->BKingCastle = '\0';
     board->BQueenCastle = '\0';
@@ -655,50 +652,50 @@ void add_fen_castling(Game *game_details, Board *board) {
 Board *new_game_board(const char *fen) {
   Board *new_board = NULL;
   static const Board initial_board = {
-      .board={{OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
-       {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
-       {OFF, OFF, W(ROOK), W(KNIGHT), W(BISHOP), W(QUEEN), W(KING), W(BISHOP),
-        W(KNIGHT), W(ROOK), OFF, OFF},
-       {OFF, OFF, W(PAWN), W(PAWN), W(PAWN), W(PAWN), W(PAWN), W(PAWN), W(PAWN),
-        W(PAWN), OFF, OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
-        OFF},
-       {OFF, OFF, B(PAWN), B(PAWN), B(PAWN), B(PAWN), B(PAWN), B(PAWN), B(PAWN),
-        B(PAWN), OFF, OFF},
-       {OFF, OFF, B(ROOK), B(KNIGHT), B(BISHOP), B(QUEEN), B(KING), B(BISHOP),
-        B(KNIGHT), B(ROOK), OFF, OFF},
-       {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
-       {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF}},
+      .board = {{OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
+                {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
+                {OFF, OFF, W(ROOK), W(KNIGHT), W(BISHOP), W(QUEEN), W(KING),
+                 W(BISHOP), W(KNIGHT), W(ROOK), OFF, OFF},
+                {OFF, OFF, W(PAWN), W(PAWN), W(PAWN), W(PAWN), W(PAWN), W(PAWN),
+                 W(PAWN), W(PAWN), OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, OFF, OFF},
+                {OFF, OFF, B(PAWN), B(PAWN), B(PAWN), B(PAWN), B(PAWN), B(PAWN),
+                 B(PAWN), B(PAWN), OFF, OFF},
+                {OFF, OFF, B(ROOK), B(KNIGHT), B(BISHOP), B(QUEEN), B(KING),
+                 B(BISHOP), B(KNIGHT), B(ROOK), OFF, OFF},
+                {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
+                {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF}},
       /* Who to move next. */
-      .to_move=WHITE,
+      .to_move = WHITE,
       /* Move number. */
-      .move_number=1,
+      .move_number = 1,
       /* Castling rights. Support Chess960. */
-      .WKingCastle='h',
-      .WQueenCastle='a',
-      .BKingCastle='h',
-      .BQueenCastle='a',
+      .WKingCastle = 'h',
+      .WQueenCastle = 'a',
+      .BKingCastle = 'h',
+      .BQueenCastle = 'a',
       /* Initial king positions. */
-      .WKingCol='e',
-      .WKingRank=FIRSTRANK,
-      .BKingCol='e',
-      .BKingRank=LASTRANK,
+      .WKingCol = 'e',
+      .WKingRank = FIRSTRANK,
+      .BKingCol = 'e',
+      .BKingRank = LASTRANK,
       /* En Passant rights. */
-      .EnPassant=FALSE,
-      .ep_rank=0,
-      .ep_col=0,
+      .EnPassant = false,
+      .ep_rank = 0,
+      .ep_col = 0,
       /* Initial hash value. */
-      .weak_hash_value=0ul,
+      .weak_hash_value = 0ul,
       /* Zobrist hash */
-      .zobrist=0,
+      .zobrist = 0,
       /* half-move_clock */
-      .halfmove_clock=0,
+      .halfmove_clock = 0,
   };
   /* Iterate over the columns. */
   Col col;
@@ -835,12 +832,12 @@ static int half_moves_played(const Board *board) {
 }
 
 /* Implement move_details on the board.
- * Return TRUE if the move is ok, FALSE otherwise.
+ * Return true if the move is ok, false otherwise.
  * move_details is completed by the call to determine_move_details.
  * Thereafter, it is safe to make the move on board.
  */
-Boolean apply_move(Move *move_details, Board *board) { /* Assume success. */
-  Boolean Ok = TRUE;
+bool apply_move(Move *move_details, Board *board) { /* Assume success. */
+  bool Ok = true;
   Colour colour = board->to_move;
 
   if (determine_move_details(colour, move_details, board)) {
@@ -866,7 +863,7 @@ Boolean apply_move(Move *move_details, Board *board) { /* Assume success. */
                   move_details->to_rank, move_details->promoted_piece, colour,
                   board);
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
       break;
     case KINGSIDE_CASTLE:
@@ -878,7 +875,7 @@ Boolean apply_move(Move *move_details, Board *board) { /* Assume success. */
       break;
     case UNKNOWN_MOVE:
     default:
-      Ok = FALSE;
+      Ok = false;
       break;
     }
     /* Determine whether or not this move gives check. */
@@ -904,7 +901,7 @@ Boolean apply_move(Move *move_details, Board *board) { /* Assume success. */
       }
     }
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   return Ok;
 }
@@ -914,27 +911,27 @@ Boolean apply_move(Move *move_details, Board *board) { /* Assume success. */
  * game_details is updated with the final_ and cumulative_ hash values.
  * Check move validity unless a NULL_MOVE has been found in this
  * variation.
- * Return TRUE if the game is valid and matches all matching criteria,
- * FALSE otherwise.
+ * Return true if the game is valid and matches all matching criteria,
+ * false otherwise.
  */
-static Boolean play_moves(Game *game_details, Board *board, Move *moves,
-                          unsigned max_depth, Boolean check_move_validity,
-                          Boolean mainline) {
-  Boolean game_ok = TRUE;
+static bool play_moves(Game *game_details, Board *board, Move *moves,
+                       unsigned max_depth, bool check_move_validity,
+                       bool mainline) {
+  bool game_ok = true;
   /* Ply number at which any error was found. */
   int error_ply = 0;
   /* Force a match if we aren't looking for positional variations. */
-  Boolean game_matches = !GlobalState.positional_variations;
+  bool game_matches = !GlobalState.positional_variations;
   Move *next_move = moves;
   /* Keep track of the final ECO match. */
   EcoLog *eco_match = NULL;
-  Boolean null_move_in_main_line = FALSE;
+  bool null_move_in_main_line = false;
   /* Whether the fifty-move rule was available in the main line. */
-  Boolean N_move_rule_applies = FALSE;
+  bool N_move_rule_applies = false;
   /* Number of ply, based on the current move number. */
   unsigned plies = board->move_number * 2 - (board->to_move == WHITE ? 1 : 0);
   /* Whether there has been an underpromotion. */
-  Boolean underpromotion = FALSE;
+  bool underpromotion = false;
 
   const char *match_label = NULL;
 
@@ -945,7 +942,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
    */
   if (!game_matches && plies >= GlobalState.startply &&
       (match_label = position_matches(board)) != NULL) {
-    game_matches = TRUE;
+    game_matches = true;
     if (GlobalState.add_position_match_comments) {
       CommentList *comment = create_match_comment(board);
       comment->next = game_details->prefix_comment;
@@ -969,7 +966,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
          (game_matches || (plies <= max_depth))) {
     if (*(next_move->move) != '\0') {
       /* There might be a restriction on when to start checking for a match. */
-      Boolean check_for_match = plies >= GlobalState.startply;
+      bool check_for_match = plies >= GlobalState.startply;
 
       /* See if there are any variations associated with this move. */
       if ((next_move->Variants != NULL) && GlobalState.keep_variations) {
@@ -978,12 +975,12 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
       }
       /* Now try the main move. */
       if (next_move->class == NULL_MOVE) {
-        null_move_in_main_line = TRUE;
+        null_move_in_main_line = true;
         /* We might not be able to check the validity of
          * subsequent moves.
          */
 #if 0
-                check_move_validity = FALSE;
+                check_move_validity = false;
 #endif
       }
       if (check_move_validity) {
@@ -991,7 +988,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
           /* Don't try for a positional match if we already have one. */
           if (check_for_match && !game_matches &&
               (match_label = position_matches(board)) != NULL) {
-            game_matches = TRUE;
+            game_matches = true;
             if (GlobalState.add_position_match_comments) {
               CommentList *comment = create_match_comment(board);
               append_comments_to_move(next_move, comment);
@@ -1022,7 +1019,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
             if (board->halfmove_clock >=
                 2 * GlobalState.check_for_N_move_rule) {
               /* N moves by both players with no pawn move or capture. */
-              N_move_rule_applies = TRUE;
+              N_move_rule_applies = true;
               if (GlobalState.add_position_match_comments) {
                 CommentList *comment = create_match_comment(board);
                 append_comments_to_move(next_move, comment);
@@ -1033,7 +1030,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
           if (check_for_match && GlobalState.match_underpromotion &&
               next_move->class == PAWN_MOVE_WITH_PROMOTION) {
             if (next_move->promoted_piece != QUEEN) {
-              underpromotion = TRUE;
+              underpromotion = true;
             }
           }
 
@@ -1110,7 +1107,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
                 strcmp(result_tag, move_result) != 0) {
               /* Mismatch. */
               /* Whether to report it. */
-              Boolean report = TRUE;
+              bool report = true;
               if (GlobalState.fix_result_tags) {
                 if (strcmp(move_result, "*") == 0 ||
                     strcmp(result_tag, "*") == 0) {
@@ -1122,13 +1119,13 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
                    */
                   free((void *)result_tag);
                   game_details->tags[RESULT_TAG] = copy_string(move_result);
-                  report = FALSE;
+                  report = false;
                 } else {
                   /* Irreconcilable conflict. */
                 }
               } else if (strcmp(move_result, "*") == 0) {
                 /* Don't report this form of inconsistency. */
-                report = FALSE;
+                report = false;
               }
               if (report) {
                 print_error_context(GlobalState.logfile);
@@ -1138,7 +1135,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
                         result_tag, move_result);
                 report_details(GlobalState.logfile);
                 if (GlobalState.reject_inconsistent_results) {
-                  game_ok = FALSE;
+                  game_ok = false;
                 }
               }
             }
@@ -1182,7 +1179,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
           print_board(board, GlobalState.logfile);
           report_details(GlobalState.logfile);
           print_error_context(GlobalState.logfile);
-          game_ok = FALSE;
+          game_ok = false;
           /* Work out where the error was. */
           error_ply = 2 * board->move_number - 1;
           /* Check who has just moved. */
@@ -1203,7 +1200,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
       fprintf(GlobalState.logfile,
               "Internal error: Empty move in play_moves.\n");
       report_details(GlobalState.logfile);
-      game_ok = FALSE;
+      game_ok = false;
       /* Work out where the error was. */
       error_ply = 2 * board->move_number - 1;
       /* Check who has just moved. */
@@ -1219,7 +1216,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
   if (null_move_in_main_line) {
     /* From v17.50: Don't automatically rule this game out. */
     if (!GlobalState.allow_null_moves) {
-      game_ok = FALSE;
+      game_ok = false;
     }
   }
   if (game_ok || GlobalState.keep_broken_games) {
@@ -1263,7 +1260,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
       game_matches = N_move_rule_applies;
     }
     if (game_matches && GlobalState.match_underpromotion && !underpromotion) {
-      game_matches = FALSE;
+      game_matches = false;
     }
 
     /* Add a tag containing the matching FENPattern's label
@@ -1302,7 +1299,7 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
        * in which we were interested.
        */
       /* We can't have found a genuine match. */
-      game_matches = FALSE;
+      game_matches = false;
     }
   }
   return game_matches;
@@ -1313,15 +1310,15 @@ static Boolean play_moves(Game *game_details, Board *board, Move *moves,
  * game_details is updated with the final_ and cumulative_ hash values.
  * Check move validity unless a NULL_MOVE has been found in this
  * variation.
- * Return TRUE if the game is valid, FALSE otherwise.
+ * Return true if the game is valid, false otherwise.
  */
-static Boolean check_move_validity(Game *game_details, Board *board,
-                                   Move *moves, Boolean mainline) {
-  Boolean game_ok = TRUE;
+static bool check_move_validity(Game *game_details, Board *board, Move *moves,
+                                bool mainline) {
+  bool game_ok = true;
   /* Ply number at which any error was found. */
   int error_ply = 0;
   Move *next_move = moves;
-  Boolean null_move_in_main_line = FALSE;
+  bool null_move_in_main_line = false;
   EcoLog *eco_match = NULL;
 
   /* Ensure that the RESULT_TAG (if present) is valid. */
@@ -1343,7 +1340,7 @@ static Boolean check_move_validity(Game *game_details, Board *board,
       }
       /* Now try the main move. */
       if (next_move->class == NULL_MOVE) {
-        null_move_in_main_line = TRUE;
+        null_move_in_main_line = true;
         /* We might not be able to check the validity of
          * subsequent moves.
          */
@@ -1420,7 +1417,7 @@ static Boolean check_move_validity(Game *game_details, Board *board,
               strcmp(result_tag, move_result) != 0) {
             /* Mismatch. */
             /* Whether to report it. */
-            Boolean report = TRUE;
+            bool report = true;
             if (GlobalState.fix_result_tags) {
               if (strcmp(move_result, "*") == 0 ||
                   strcmp(result_tag, "*") == 0) {
@@ -1432,13 +1429,13 @@ static Boolean check_move_validity(Game *game_details, Board *board,
                  */
                 free((void *)result_tag);
                 game_details->tags[RESULT_TAG] = copy_string(move_result);
-                report = FALSE;
+                report = false;
               } else {
                 /* Irreconcilable conflict. */
               }
             } else if (strcmp(move_result, "*") == 0) {
               /* Don't report this form of inconsistency. */
-              report = FALSE;
+              report = false;
             }
             if (report) {
               print_error_context(GlobalState.logfile);
@@ -1448,7 +1445,7 @@ static Boolean check_move_validity(Game *game_details, Board *board,
                       result_tag, move_result);
               report_details(GlobalState.logfile);
               if (GlobalState.reject_inconsistent_results) {
-                game_ok = FALSE;
+                game_ok = false;
               }
             }
           }
@@ -1491,7 +1488,7 @@ static Boolean check_move_validity(Game *game_details, Board *board,
         print_board(board, GlobalState.logfile);
         report_details(GlobalState.logfile);
         print_error_context(GlobalState.logfile);
-        game_ok = FALSE;
+        game_ok = false;
         /* Work out where the error was. */
         error_ply = 2 * board->move_number - 1;
         /* Check who has just moved. */
@@ -1504,7 +1501,7 @@ static Boolean check_move_validity(Game *game_details, Board *board,
       fprintf(GlobalState.logfile,
               "Internal error: Empty move in play_moves.\n");
       report_details(GlobalState.logfile);
-      game_ok = FALSE;
+      game_ok = false;
       /* Work out where the error was. */
       error_ply = 2 * board->move_number - 1;
       /* Check who has just moved. */
@@ -1519,7 +1516,7 @@ static Boolean check_move_validity(Game *game_details, Board *board,
   if (null_move_in_main_line) {
     /* From v17.50: Don't automatically rule this game out. */
     if (!GlobalState.allow_null_moves) {
-      game_ok = FALSE;
+      game_ok = false;
     }
   }
   if (game_ok || GlobalState.keep_broken_games) {
@@ -1572,7 +1569,7 @@ static Boolean check_move_validity(Game *game_details, Board *board,
  * values.
  */
 static void play_eco_moves(Game *game_details, Board *board, Move *moves) {
-  Boolean game_ok = TRUE;
+  bool game_ok = true;
   /* Ply number at which any error was found. */
   int error_ply = 0;
   Move *next_move = moves;
@@ -1597,7 +1594,7 @@ static void play_eco_moves(Game *game_details, Board *board, Move *moves) {
         print_board(board, GlobalState.logfile);
         report_details(GlobalState.logfile);
         print_error_context(GlobalState.logfile);
-        game_ok = FALSE;
+        game_ok = false;
         /* Work out where the error was. */
         error_ply = 2 * board->move_number - 1;
         /* Check who has just moved. */
@@ -1610,7 +1607,7 @@ static void play_eco_moves(Game *game_details, Board *board, Move *moves) {
       fprintf(GlobalState.logfile,
               "Internal error: Empty move in play_eco_moves.\n");
       report_details(GlobalState.logfile);
-      game_ok = FALSE;
+      game_ok = false;
       /* Work out where the error was. */
       error_ply = 2 * board->move_number - 1;
       /* Check who has just moved. */
@@ -1630,14 +1627,13 @@ static void play_eco_moves(Game *game_details, Board *board, Move *moves) {
 /* Play out a variation.
  * Check move validity unless a NULL_MOVE has been found in this
  * variation.
- * Return TRUE if the variation matches a position that
+ * Return true if the variation matches a position that
  * we are looking for.
  */
-static Boolean apply_variations(const Game *game_details, const Board *board,
-                                Variation *variation,
-                                Boolean check_move_validity) {
+static bool apply_variations(const Game *game_details, const Board *board,
+                             Variation *variation, bool check_move_validity) {
   /* Force a match if we aren't looking for positional variations. */
-  Boolean variation_matches = GlobalState.positional_variations ? FALSE : TRUE;
+  bool variation_matches = GlobalState.positional_variations ? false : true;
   /* Allocate space for the copies.
    * Allocation is done, rather than relying on local copies in the body
    * of the loop because the recursive nature of this function has
@@ -1660,7 +1656,7 @@ static Boolean apply_variations(const Game *game_details, const Board *board,
      */
     variation_matches |=
         play_moves(copy_game, copy_board, variation->moves,
-                   DEFAULT_POSITIONAL_DEPTH, check_move_validity, FALSE);
+                   DEFAULT_POSITIONAL_DEPTH, check_move_validity, false);
     variation = variation->next;
   }
   (void)free((void *)copy_game);
@@ -1671,14 +1667,14 @@ static Boolean apply_variations(const Game *game_details, const Board *board,
 /* game_details contains a complete move score.
  * Try to apply each move on a new board.
  * Store in plycount the number of ply played.
- * Return TRUE if the game matches a variation that we are
+ * Return true if the game matches a variation that we are
  * looking for.
  */
-Boolean apply_move_list(Game *game_details, unsigned *plycount,
-                        unsigned max_depth, Boolean check_for_a_match) {
+bool apply_move_list(Game *game_details, unsigned *plycount, unsigned max_depth,
+                     bool check_for_a_match) {
   Move *moves = game_details->moves;
   Board *board = new_game_board(game_details->tags[FEN_TAG]);
-  Boolean game_matches;
+  bool game_matches;
 
   /* Ensure that we have a sensible search depth. */
   if (max_depth == 0) {
@@ -1699,10 +1695,10 @@ Boolean apply_move_list(Game *game_details, unsigned *plycount,
    */
   if (check_for_a_match) {
     game_matches =
-        play_moves(game_details, board, moves, max_depth, TRUE, TRUE);
+        play_moves(game_details, board, moves, max_depth, true, true);
   } else {
-    check_move_validity(game_details, board, moves, TRUE);
-    game_matches = FALSE;
+    check_move_validity(game_details, board, moves, true);
+    game_matches = false;
   }
 
   /* Record how long the game was. */
@@ -1727,12 +1723,11 @@ Boolean apply_move_list(Game *game_details, unsigned *plycount,
 }
 
 /* Play out a variation to check it is valid.
- * Return TRUE if the variation is valid.
+ * Return true if the variation is valid.
  */
-static Boolean check_variation_validity(const Game *game_details,
-                                        const Board *board,
-                                        Variation *variation) {
-  Boolean valid = TRUE;
+static bool check_variation_validity(const Game *game_details,
+                                     const Board *board, Variation *variation) {
+  bool valid = true;
   /* Allocate space for the copies.
    * Allocation is done, rather than relying on local copies in the body
    * of the loop because the recursive nature of this function has
@@ -1753,7 +1748,7 @@ static Boolean check_variation_validity(const Game *game_details,
      * will want the full move information.
      */
     valid &=
-        check_move_validity(copy_game, copy_board, variation->moves, FALSE);
+        check_move_validity(copy_game, copy_board, variation->moves, false);
     variation = variation->next;
   }
   (void)free((void *)copy_game);
@@ -1794,19 +1789,19 @@ const char *piece_str(Piece piece) {
 /* Rewrite move_details->move according to the details held
  * within the structure and the current state of the board.
  */
-static Boolean rewrite_SAN_string(Colour colour, Move *move_details,
-                                  Board *board) {
-  Boolean Ok = TRUE;
+static bool rewrite_SAN_string(Colour colour, Move *move_details,
+                               Board *board) {
+  bool Ok = true;
 
   if (move_details == NULL) {
     /* Shouldn't happen. */
     fprintf(GlobalState.logfile,
             "Internal error: NULL move details in rewrite_SAN_string.\n");
-    Ok = FALSE;
+    Ok = false;
   } else if (move_details->move[0] == '\0') {
     /* Shouldn't happen. */
     fprintf(GlobalState.logfile, "Empty move in rewrite_SAN_string.\n");
-    Ok = FALSE;
+    Ok = false;
   } else {
     const unsigned char *move = move_details->move;
     MoveClass class = move_details->class;
@@ -1841,7 +1836,7 @@ static Boolean rewrite_SAN_string(Colour colour, Move *move_details,
         break;
       default:
         fprintf(GlobalState.logfile, "Unknown piece move %s\n", move);
-        Ok = FALSE;
+        Ok = false;
         break;
       }
       break;
@@ -1857,7 +1852,7 @@ static Boolean rewrite_SAN_string(Colour colour, Move *move_details,
       fprintf(GlobalState.logfile,
               "Unknown move class in rewrite_SAN_string(%d).\n",
               move_details->class);
-      Ok = FALSE;
+      Ok = false;
       break;
     }
     if (move_list != NULL) {
@@ -1866,7 +1861,7 @@ static Boolean rewrite_SAN_string(Colour colour, Move *move_details,
     }
     if ((move_list == NULL) && (class != KINGSIDE_CASTLE) &&
         (class != QUEENSIDE_CASTLE) && (class != NULL_MOVE)) {
-      Ok = FALSE;
+      Ok = false;
     }
     /* We should now have enough information in move_details to compose a
      * SAN string.
@@ -1966,7 +1961,7 @@ static Boolean rewrite_SAN_string(Colour colour, Move *move_details,
         break;
       case UNKNOWN_MOVE:
       default:
-        Ok = FALSE;
+        Ok = false;
         break;
       }
       if (Ok) {
@@ -1995,14 +1990,14 @@ static Boolean rewrite_SAN_string(Colour colour, Move *move_details,
 
 /* Apply the move to board and rewrite move_details->move unless
  * the output format is the original source.
- * Return TRUE if the move is ok, FALSE otherwise.
+ * Return true if the move is ok, false otherwise.
  */
-static Boolean rewrite_move(Game *game, Colour colour, Move *move_details,
-                            Board *board) { /* Assume success. */
-  Boolean Ok = TRUE;
+static bool rewrite_move(Game *game, Colour colour, Move *move_details,
+                         Board *board) { /* Assume success. */
+  bool Ok = true;
 
   if (move_details->class == UNKNOWN_MOVE) {
-    Ok = FALSE;
+    Ok = false;
   } else if (GlobalState.output_format == SOURCE ||
              rewrite_SAN_string(colour, move_details, board)) {
     Piece piece_to_move = move_details->piece_to_move;
@@ -2048,7 +2043,7 @@ static Boolean rewrite_move(Game *game, Colour colour, Move *move_details,
                   move_details->to_col, move_details->to_rank,
                   move_details->promoted_piece, colour, board);
       } else {
-        Ok = FALSE;
+        Ok = false;
       }
       break;
     case NULL_MOVE:
@@ -2056,11 +2051,11 @@ static Boolean rewrite_move(Game *game, Colour colour, Move *move_details,
       break;
     case UNKNOWN_MOVE:
     default:
-      Ok = FALSE;
+      Ok = false;
       break;
     }
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   return Ok;
 }
@@ -2069,8 +2064,8 @@ static Boolean rewrite_move(Game *game, Colour colour, Move *move_details,
  * If game is NULL then the moves are a variation rather than
  * the main line.
  */
-static Boolean rewrite_moves(Game *game, Board *board, Move *moves) {
-  Boolean game_ok = TRUE;
+static bool rewrite_moves(Game *game, Board *board, Move *moves) {
+  bool game_ok = true;
   Move *move_details = moves;
   int plies_to_drop = GlobalState.drop_ply_number;
 
@@ -2080,7 +2075,7 @@ static Boolean rewrite_moves(Game *game, Board *board, Move *moves) {
       if ((move_details->Variants != NULL) && GlobalState.keep_variations &&
           !rewrite_variations(board, move_details->Variants)) {
         /* Something wrong with the variations. */
-        game_ok = FALSE;
+        game_ok = false;
       }
       if (rewrite_move(game, board->to_move, move_details, board)) {
         if (move_details->class == NULL_MOVE && game != NULL) {
@@ -2139,14 +2134,14 @@ static Boolean rewrite_moves(Game *game, Board *board, Move *moves) {
           print_error_context(GlobalState.logfile);
           print_board(board, GlobalState.logfile);
         }
-        game_ok = FALSE;
+        game_ok = false;
       }
     } else {
       /* An empty move. */
       fprintf(GlobalState.logfile,
               "Internal error: Empty move in rewrite_moves.\n");
       report_details(GlobalState.logfile);
-      game_ok = FALSE;
+      game_ok = false;
     }
   }
   if (!game_ok) {
@@ -2208,18 +2203,18 @@ static Boolean rewrite_moves(Game *game, Board *board, Move *moves) {
     if (plies_to_drop >= 0) {
       game_ok = drop_plies_from_start(game, moves, plies_to_drop);
     } else {
-      game_ok = FALSE;
+      game_ok = false;
     }
   }
   return game_ok;
 }
 
 /* Rewrite the list of variations.
- * Return TRUE if the variation are ok. a position that
+ * Return true if the variation are ok. a position that
  */
-static Boolean rewrite_variations(const Board *board, Variation *variation) {
+static bool rewrite_variations(const Board *board, Variation *variation) {
   Board *copy_board = allocate_new_board();
-  Boolean variations_ok = TRUE;
+  bool variations_ok = true;
 
   while ((variation != NULL) && variations_ok) {
     /* Work on the copy. */
@@ -2239,7 +2234,7 @@ static Boolean rewrite_variations(const Board *board, Variation *variation) {
  */
 Board *rewrite_game(Game *current_game) {
   Board *board = new_game_board(current_game->tags[FEN_TAG]);
-  Boolean game_ok;
+  bool game_ok;
 
   /* No null-move found at the start of the game. */
   game_ok = rewrite_moves(current_game, board, current_game->moves);
@@ -2267,15 +2262,14 @@ static unsigned plies_in_move_sequence(Move *moves) {
 /* Drop the given number of play from the start of this game.
  * If plies_to_drop is negative, drop all but that number
  * from the beginning.
- * Return FALSE if there are insufficient.
+ * Return false if there are insufficient.
  * If there are sufficient replace the game's FEN tag with
  * the revised starting state.
  */
-static Boolean drop_plies_from_start(Game *game, Move *moves,
-                                     int plies_to_drop) {
+static bool drop_plies_from_start(Game *game, Move *moves, int plies_to_drop) {
   char *fen = game->tags[FEN_TAG];
   Board *board = new_game_board(fen);
-  Boolean game_ok = TRUE;
+  bool game_ok = true;
   int plies = 0;
   Move *new_head = moves;
 
@@ -2297,7 +2291,7 @@ static Boolean drop_plies_from_start(Game *game, Move *moves,
       plies++;
       new_head = new_head->next;
     } else {
-      game_ok = FALSE;
+      game_ok = false;
     }
   }
   if (plies == plies_to_drop && game_ok) {
@@ -2331,7 +2325,7 @@ static Boolean drop_plies_from_start(Game *game, Move *moves,
       free_move_list(moves);
     }
   } else {
-    game_ok = FALSE;
+    game_ok = false;
   }
   (void)free((void *)board);
   return game_ok;
@@ -2343,7 +2337,7 @@ static Boolean drop_plies_from_start(Game *game, Move *moves,
 #define MAX_NON_POLYGLOT_CODE 541
 static HashLog *non_polyglot_codes_of_interest[MAX_NON_POLYGLOT_CODE];
 /* Whether or not the non-polyglot hashcodes are in use. */
-Boolean using_non_polyglot = FALSE;
+bool using_non_polyglot = false;
 
 /* move_details is either the start of a variation in which we are interested
  * or it is NULL.
@@ -2354,7 +2348,7 @@ Boolean using_non_polyglot = FALSE;
 void store_hash_value(Move *move_details, const char *fen) {
   Move *move = move_details;
   Board *board = new_game_board(fen);
-  Boolean Ok = TRUE;
+  bool Ok = true;
 
   while ((move != NULL) && Ok) {
     /* Reset print_move number if a variation was printed. */
@@ -2368,7 +2362,7 @@ void store_hash_value(Move *move_details, const char *fen) {
       fprintf(GlobalState.logfile, "Failed to make move %u%s %s\n",
               board->move_number, (board->to_move == WHITE) ? "." : "...",
               move->move);
-      Ok = FALSE;
+      Ok = false;
     }
   }
 
@@ -2384,7 +2378,7 @@ void store_hash_value(Move *move_details, const char *fen) {
     /* Link it into the head at this index. */
     entry->next = non_polyglot_codes_of_interest[ix];
     non_polyglot_codes_of_interest[ix] = entry;
-    using_non_polyglot = TRUE;
+    using_non_polyglot = true;
   } else {
     exit(1);
   }
@@ -2397,16 +2391,16 @@ void store_hash_value(Move *move_details, const char *fen) {
 #define MAX_POLYGLOT_CODE 541
 static HashLog *polyglot_codes_of_interest[MAX_POLYGLOT_CODE];
 /* Whether or not the polyglot hashcodes are in use. */
-static Boolean using_polyglot = FALSE;
+static bool using_polyglot = false;
 
 /**
  * Convert the given hex string to an int and save it
  * for position matching.
  * @param value A hexadecimal string of up to 16 characters.
- * @return TRUE if the value is decoded ok; FALSE otherwise.
+ * @return true if the value is decoded ok; false otherwise.
  */
-Boolean save_polyglot_hashcode(const char *value) {
-  Boolean Ok;
+bool save_polyglot_hashcode(const char *value) {
+  bool Ok;
 
   if (value != NULL && *value != '\0') {
     size_t len = strspn(value, "0123456789abcdefABCDEF");
@@ -2430,15 +2424,15 @@ Boolean save_polyglot_hashcode(const char *value) {
         /* Link it into the head at this index. */
         entry->next = polyglot_codes_of_interest[ix];
         polyglot_codes_of_interest[ix] = entry;
-        using_polyglot = TRUE;
+        using_polyglot = true;
       } else {
         fprintf(GlobalState.logfile, "Unrecognised hash value %s\n", value);
       }
     } else {
-      Ok = FALSE;
+      Ok = false;
     }
   } else {
-    Ok = FALSE;
+    Ok = false;
   }
   return Ok;
 }
@@ -2450,7 +2444,7 @@ Boolean save_polyglot_hashcode(const char *value) {
  * used for no label.
  */
 static const char *position_matches(const Board *board) {
-  Boolean found = FALSE;
+  bool found = false;
 
   if (using_non_polyglot) {
     HashCode current_hash_value = board->weak_hash_value;
@@ -2459,7 +2453,7 @@ static const char *position_matches(const Board *board) {
          !found && (entry != NULL); entry = entry->next) {
       /* We can test against just the position value. */
       if (entry->final_hash_value == current_hash_value) {
-        found = TRUE;
+        found = true;
       }
     }
   }
@@ -2470,16 +2464,16 @@ static const char *position_matches(const Board *board) {
          !found && (entry != NULL); entry = entry->next) {
       /* We can test against just the position value. */
       if (entry->final_hash_value == current_hash_value) {
-        found = TRUE;
+        found = true;
       }
     }
   }
   if (found && GlobalState.whose_move != EITHER_TO_MOVE) {
     if (board->to_move == WHITE && GlobalState.whose_move == BLACK_TO_MOVE) {
-      found = FALSE;
+      found = false;
     } else if (board->to_move == BLACK &&
                GlobalState.whose_move == WHITE_TO_MOVE) {
-      found = FALSE;
+      found = false;
     }
   }
   if (found) {
@@ -2503,7 +2497,7 @@ void build_basic_EPD_string(const Board *board, char *epd) {
   Rank rank;
   int ix = 0;
 #if 0
-    Boolean castling_allowed;
+    bool castling_allowed;
 #endif
 
   /* The board. */
@@ -2639,26 +2633,26 @@ void build_basic_EPD_string(const Board *board, char *epd) {
     }
   }
 #else
-  castling_allowed = FALSE;
+  castling_allowed = false;
   if (board->WKingCastle != '\0') {
     epd[ix] = 'K';
     ix++;
-    castling_allowed = TRUE;
+    castling_allowed = true;
   }
   if (board->WQueenCastle != '\0') {
     epd[ix] = 'Q';
     ix++;
-    castling_allowed = TRUE;
+    castling_allowed = true;
   }
   if (board->BKingCastle != '\0') {
     epd[ix] = 'k';
     ix++;
-    castling_allowed = TRUE;
+    castling_allowed = true;
   }
   if (board->BQueenCastle != '\0') {
     epd[ix] = 'q';
     ix++;
-    castling_allowed = TRUE;
+    castling_allowed = true;
   }
   if (!castling_allowed) {
     /* There are no castling rights. */
@@ -2672,13 +2666,13 @@ void build_basic_EPD_string(const Board *board, char *epd) {
   /* Enpassant. */
   if (board->EnPassant) {
     /* It might be required to suppress redundant ep info. */
-    Boolean suppress = FALSE;
+    bool suppress = false;
     if (GlobalState.suppress_redundant_ep_info) {
       /* Determine whether the ep indication is redundant or not.
        * Assume that it is unless there is a pawn in position to
        * take advantage of it.
        */
-      Boolean redundant = TRUE;
+      bool redundant = true;
       Col ep_col = board->ep_col;
       Rank from_rank;
       Piece pawn;
@@ -2699,7 +2693,7 @@ void build_basic_EPD_string(const Board *board, char *epd) {
         make_move(UNKNOWN_MOVE, ep_col - 1, from_rank, board->ep_col,
                   board->ep_rank, PAWN, board->to_move, &copy_board);
         if (king_is_in_check(&copy_board, copy_board.to_move) == NOCHECK) {
-          redundant = FALSE;
+          redundant = false;
         }
       }
       if (redundant && (ep_col < LASTCOL) &&
@@ -2710,7 +2704,7 @@ void build_basic_EPD_string(const Board *board, char *epd) {
         make_move(UNKNOWN_MOVE, ep_col + 1, from_rank, board->ep_col,
                   board->ep_rank, PAWN, board->to_move, &copy_board);
         if (king_is_in_check(&copy_board, copy_board.to_move) == NOCHECK) {
-          redundant = FALSE;
+          redundant = false;
         }
       }
       suppress = redundant;
@@ -2938,13 +2932,13 @@ static double shannonEvaluation(const Board *board) {
  */
 static StringList *find_matching_comment(const char *comment_pattern,
                                          const CommentList *comment) {
-  Boolean match = FALSE;
+  bool match = false;
   StringList *string_list;
   while (!match && comment != NULL) {
     string_list = comment->comment;
     while (!match && string_list != NULL) {
       if (strcmp(comment_pattern, string_list->str) == 0) {
-        match = TRUE;
+        match = true;
       } else {
         string_list = string_list->next;
       }

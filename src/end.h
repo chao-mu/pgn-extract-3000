@@ -22,41 +22,47 @@
 #ifndef END_H
 #define END_H
 
-#include "bool.h"
+#include <stdbool.h>
+
 #include "typedef.h"
 
 /* Define a type to represent classes of occurrance. */
 typedef enum {
-    EXACTLY, NUM_OR_MORE, NUM_OR_LESS,
-    SAME_AS_OPPONENT, NOT_SAME_AS_OPPONENT,
-    LESS_THAN_OPPONENT, MORE_THAN_OPPONENT,
-    LESS_EQ_THAN_OPPONENT, MORE_EQ_THAN_OPPONENT
+  EXACTLY,
+  NUM_OR_MORE,
+  NUM_OR_LESS,
+  SAME_AS_OPPONENT,
+  NOT_SAME_AS_OPPONENT,
+  LESS_THAN_OPPONENT,
+  MORE_THAN_OPPONENT,
+  LESS_EQ_THAN_OPPONENT,
+  MORE_EQ_THAN_OPPONENT
 } Occurs;
 
 /* Define a structure to hold details on the occurrances of
  * each of the pieces.
  */
 typedef struct material_details {
-    /* Whether the pieces are to be tried against
-     * both colours.
-     */
-    Boolean both_colours;
-    /* The number of each set of pieces. */
-    int num_pieces[2][NUM_PIECE_VALUES];
-    Occurs occurs[2][NUM_PIECE_VALUES];
-    /* Numbers of general minor pieces. */
-    int num_minor_pieces[2];
-    Occurs minor_occurs[2];
-    /* How long a given relationship must last to be recognised.
-     * This value is in half moves.
-     */
-    unsigned move_depth;
-    /* How long a match relationship has been matched.
-     * This is always reset to zero on failure and incremented on
-     * success. A full match is only returned when match_depth == move_depth.
-     */
-    unsigned match_depth[2];
-    struct material_details *next;
+  /* Whether the pieces are to be tried against
+   * both colours.
+   */
+  bool both_colours;
+  /* The number of each set of pieces. */
+  int num_pieces[2][NUM_PIECE_VALUES];
+  Occurs occurs[2][NUM_PIECE_VALUES];
+  /* Numbers of general minor pieces. */
+  int num_minor_pieces[2];
+  Occurs minor_occurs[2];
+  /* How long a given relationship must last to be recognised.
+   * This value is in half moves.
+   */
+  unsigned move_depth;
+  /* How long a match relationship has been matched.
+   * This is always reset to zero on failure and incremented on
+   * success. A full match is only returned when match_depth == move_depth.
+   */
+  unsigned match_depth[2];
+  struct material_details *next;
 } Material_details;
 
 /* Character to separate a pattern from material constraints.
@@ -64,11 +70,13 @@ typedef struct material_details {
  */
 #define MATERIAL_CONSTRAINT ':'
 
-Boolean build_endings(const char *infile, Boolean both_colours);
-Boolean check_for_material_match(Game *game);
-Boolean constraint_material_match(Material_details *details_to_find, const Board *board);
-Boolean insufficient_material(const Board *board);
-Material_details *process_material_description(const char *line, Boolean both_colours, Boolean pattern_constraint);
+bool build_endings(const char *infile, bool both_colours);
+bool check_for_material_match(Game *game);
+bool constraint_material_match(Material_details *details_to_find,
+                               const Board *board);
+bool insufficient_material(const Board *board);
+Material_details *process_material_description(const char *line,
+                                               bool both_colours,
+                                               bool pattern_constraint);
 
-#endif	// END_H
-
+#endif // END_H

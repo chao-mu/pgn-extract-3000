@@ -22,11 +22,10 @@
 #ifndef LINES_H
 #define LINES_H
 
-#include "bool.h"
+#include <stdbool.h>
 
-Boolean non_blank_line(const char *line);
-Boolean blank_line(const char *line);
-Boolean comment_line(const char *line);
+bool non_blank_line(const char *line);
+bool blank_line(const char *line);
+bool comment_line(const char *line);
 
-#endif	// LINES_H
-
+#endif // LINES_H

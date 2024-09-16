@@ -19,35 +19,37 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
-        /* Define a type to hold hash values of interest. */
+/* Define a type to hold hash values of interest. */
 #ifndef ECO_H
 #define ECO_H
+
+#include <stdbool.h>
 
 #include "typedef.h"
 
 typedef struct EcoLog {
-    HashCode required_hash_value;
-    /* cumulative_hash_value is used to disambiguate clashing
-     * final hash values in duplicate detection.
-     */
-    HashCode cumulative_hash_value;
-    /* How deep the line is, from the half_moves associated with
-     * the board when the line is played out.
-     */
-    unsigned half_moves;
-    const char *ECO_tag;
-    const char *Opening_tag;
-    const char *Variation_tag;
-    const char *Sub_Variation_tag;
-    struct EcoLog *next;
+  HashCode required_hash_value;
+  /* cumulative_hash_value is used to disambiguate clashing
+   * final hash values in duplicate detection.
+   */
+  HashCode cumulative_hash_value;
+  /* How deep the line is, from the half_moves associated with
+   * the board when the line is played out.
+   */
+  unsigned half_moves;
+  const char *ECO_tag;
+  const char *Opening_tag;
+  const char *Variation_tag;
+  const char *Sub_Variation_tag;
+  struct EcoLog *next;
 } EcoLog;
 
 EcoLog *eco_matches(const Board *board, HashCode cumulative_hash_value,
                     unsigned half_moves_played);
-Boolean add_ECO(Game game_details);
-FILE *open_eco_output_file(EcoDivision ECO_level,const char *eco);
+bool add_ECO(Game game_details);
+FILE *open_eco_output_file(EcoDivision ECO_level, const char *eco);
 void initEcoTable(void);
-void save_eco_details(const Game *game_details, const Board *final_position, unsigned number_of_moves);
+void save_eco_details(const Game *game_details, const Board *final_position,
+                      unsigned number_of_moves);
 
-#endif	// ECO_H
-
+#endif // ECO_H

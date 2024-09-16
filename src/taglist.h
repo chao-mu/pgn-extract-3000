@@ -32,82 +32,84 @@
 #ifndef TAGLIST_H
 #define TAGLIST_H
 
+#include <stdbool.h>
+
 typedef enum {
-    ANNOTATOR_TAG,
-    BLACK_TAG,
-    BLACK_ELO_TAG,
-    BLACK_NA_TAG,
-    BLACK_TITLE_TAG,
-    BLACK_TYPE_TAG,
-    BLACK_USCF_TAG,
-    BOARD_TAG,
-    DATE_TAG,
-    ECO_TAG,
-    /* The PSEUDO_ELO_ tags are not a real PGN one.  They are used with the -t
-     * argument so that it becomes possible to indicate a rating of either colour or
-     * a rating difference..
-     */
-    PSEUDO_ELO_TAG,
-    PSEUDO_ELO_DIFF_TAG,
-    EVENT_TAG,
-    EVENT_DATE_TAG,
-    EVENT_SPONSOR_TAG,
-    FEN_TAG,
-    /* The PSEUDO_FEN_PATTERN_TAGs are not real PGN ones.  They are used with the -t
-     * argument so that it becomes possible to indicate a FEN-based board pattern.
-     * The _I version indicates that the pattern should be tried in both its
-     * written form and inverted for the opposite colour.
-     */
-    PSEUDO_FEN_PATTERN_TAG,
-    PSEUDO_FEN_PATTERN_I_TAG,
-    HASHCODE_TAG,
-    LONG_ECO_TAG,
-    /* The MATCHLABEL_TAG is not a real PGN one.  It is used with the -t
-     * argument and FENPattern pseudo tag so that it becomes possible to
-     * which FENPattern has been matched in a game.
-     */
-    MATCHLABEL_TAG,
-    /* The MATERIAL_MATCH_TAG is not a real PGN one.  It is used with the -z
-     * argument so that it becomes possible to indicate which player's material
-     * matches the first material pattern in a match.
-     */
-    MATERIAL_MATCH_TAG,
-    MODE_TAG,
-    NIC_TAG,
-    OPENING_TAG,
-    /* The PSEUDO_PLAYER_TAG is not a real PGN one.  It is used with the -t
-     * argument so that it becomes possible to indicate a player of either colour.
-     */
-    PSEUDO_PLAYER_TAG,
-    PLY_COUNT_TAG,
-    /* The TOTAL_PLY_COUNT_TAG is used with the --totalplycount argument
-     * so record the total number of plies in a game.
-     */
-    TOTAL_PLY_COUNT_TAG,
-    RESULT_TAG,
-    ROUND_TAG,
-    SECTION_TAG,
-    SETUP_TAG,
-    SITE_TAG,
-    STAGE_TAG,
-    SUB_VARIATION_TAG,
-    TERMINATION_TAG,
-    TIME_TAG,
-    TIME_CONTROL_TAG,
-    UTC_DATE_TAG,
-    UTC_TIME_TAG,
-    VARIANT_TAG,
-    VARIATION_TAG,
-    WHITE_TAG,
-    WHITE_ELO_TAG,
-    WHITE_NA_TAG,
-    WHITE_TITLE_TAG,
-    WHITE_TYPE_TAG,
-    WHITE_USCF_TAG,
-    /* The following should always be last. It should not be used
-     * as a tag identification.
-     */
-    ORIGINAL_NUMBER_OF_TAGS
+  ANNOTATOR_TAG,
+  BLACK_TAG,
+  BLACK_ELO_TAG,
+  BLACK_NA_TAG,
+  BLACK_TITLE_TAG,
+  BLACK_TYPE_TAG,
+  BLACK_USCF_TAG,
+  BOARD_TAG,
+  DATE_TAG,
+  ECO_TAG,
+  /* The PSEUDO_ELO_ tags are not a real PGN one.  They are used with the -t
+   * argument so that it becomes possible to indicate a rating of either colour
+   * or a rating difference..
+   */
+  PSEUDO_ELO_TAG,
+  PSEUDO_ELO_DIFF_TAG,
+  EVENT_TAG,
+  EVENT_DATE_TAG,
+  EVENT_SPONSOR_TAG,
+  FEN_TAG,
+  /* The PSEUDO_FEN_PATTERN_TAGs are not real PGN ones.  They are used with the
+   * -t argument so that it becomes possible to indicate a FEN-based board
+   * pattern. The _I version indicates that the pattern should be tried in both
+   * its written form and inverted for the opposite colour.
+   */
+  PSEUDO_FEN_PATTERN_TAG,
+  PSEUDO_FEN_PATTERN_I_TAG,
+  HASHCODE_TAG,
+  LONG_ECO_TAG,
+  /* The MATCHLABEL_TAG is not a real PGN one.  It is used with the -t
+   * argument and FENPattern pseudo tag so that it becomes possible to
+   * which FENPattern has been matched in a game.
+   */
+  MATCHLABEL_TAG,
+  /* The MATERIAL_MATCH_TAG is not a real PGN one.  It is used with the -z
+   * argument so that it becomes possible to indicate which player's material
+   * matches the first material pattern in a match.
+   */
+  MATERIAL_MATCH_TAG,
+  MODE_TAG,
+  NIC_TAG,
+  OPENING_TAG,
+  /* The PSEUDO_PLAYER_TAG is not a real PGN one.  It is used with the -t
+   * argument so that it becomes possible to indicate a player of either colour.
+   */
+  PSEUDO_PLAYER_TAG,
+  PLY_COUNT_TAG,
+  /* The TOTAL_PLY_COUNT_TAG is used with the --totalplycount argument
+   * so record the total number of plies in a game.
+   */
+  TOTAL_PLY_COUNT_TAG,
+  RESULT_TAG,
+  ROUND_TAG,
+  SECTION_TAG,
+  SETUP_TAG,
+  SITE_TAG,
+  STAGE_TAG,
+  SUB_VARIATION_TAG,
+  TERMINATION_TAG,
+  TIME_TAG,
+  TIME_CONTROL_TAG,
+  UTC_DATE_TAG,
+  UTC_TIME_TAG,
+  VARIANT_TAG,
+  VARIATION_TAG,
+  WHITE_TAG,
+  WHITE_ELO_TAG,
+  WHITE_NA_TAG,
+  WHITE_TITLE_TAG,
+  WHITE_TYPE_TAG,
+  WHITE_USCF_TAG,
+  /* The following should always be last. It should not be used
+   * as a tag identification.
+   */
+  ORIGINAL_NUMBER_OF_TAGS
 } TagName;
 
 #define INIT_LIST_SPACE 10
@@ -121,19 +123,25 @@ typedef enum {
  * sense in all circumstances.
  */
 typedef enum {
-    NONE,
-    LESS_THAN, GREATER_THAN, EQUAL_TO, NOT_EQUAL_TO,
-    LESS_THAN_OR_EQUAL_TO, GREATER_THAN_OR_EQUAL_TO,
-    REGEX
+  NONE,
+  LESS_THAN,
+  GREATER_THAN,
+  EQUAL_TO,
+  NOT_EQUAL_TO,
+  LESS_THAN_OR_EQUAL_TO,
+  GREATER_THAN_OR_EQUAL_TO,
+  REGEX
 } TagOperator;
 
-void add_tag_to_negative_list(int tag, const char *tagstr, TagOperator operator);
-void add_tag_to_positive_list(int tag, const char *tagstr, TagOperator operator);
-Boolean check_setup_tag(char *Details[]);
-Boolean check_ECO_tag(char *Details[], Boolean positive_match);
-Boolean check_tag_details_not_ECO(char *Details[],int num_details, Boolean positive_match);
-void extract_tag_argument(const char *argstr, Boolean positive_match);
+void add_tag_to_negative_list(int tag, const char *tagstr,
+                              TagOperator operator);
+void add_tag_to_positive_list(int tag, const char *tagstr,
+                              TagOperator operator);
+bool check_setup_tag(char *Details[]);
+bool check_ECO_tag(char *Details[], bool positive_match);
+bool check_tag_details_not_ECO(char *Details[], int num_details,
+                               bool positive_match);
+void extract_tag_argument(const char *argstr, bool positive_match);
 void init_tag_lists(void);
 
 #endif // TAGLIST_H
-

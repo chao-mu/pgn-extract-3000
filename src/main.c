@@ -25,7 +25,6 @@
 #include <string.h>
 
 #include "argsfile.h"
-#include "bool.h"
 #include "defs.h"
 #include "end.h"
 #include "grammar.h"
@@ -59,42 +58,42 @@
  * C++ there would have been a cleaner interface!
  */
 StateInfo GlobalState = {
-    FALSE,            /* skipping_current_game */
-    FALSE,            /* check_only (-r) */
+    false,            /* skipping_current_game */
+    false,            /* check_only (-r) */
     2,                /* verbosity level (-s and --quiet) */
-    TRUE,             /* keep_NAGs (-N) */
-    TRUE,             /* keep_comments (-C) */
-    TRUE,             /* keep_variations (-V) */
+    true,             /* keep_NAGs (-N) */
+    true,             /* keep_comments (-C) */
+    true,             /* keep_variations (-V) */
     ALL_TAGS,         /* tag_output_form (-7, --notags) */
-    TRUE,             /* match_permutations (-v) */
-    FALSE,            /* positional_variations (-x) */
-    FALSE,            /* use_soundex (-S) */
-    FALSE,            /* suppress_duplicates (-D) */
-    FALSE,            /* suppress_originals (-U) */
-    FALSE,            /* fuzzy_match_duplicates (--fuzzy) */
+    true,             /* match_permutations (-v) */
+    false,            /* positional_variations (-x) */
+    false,            /* use_soundex (-S) */
+    false,            /* suppress_duplicates (-D) */
+    false,            /* suppress_originals (-U) */
+    false,            /* fuzzy_match_duplicates (--fuzzy) */
     0,                /* fuzzy_match_depth (--fuzzy) */
-    FALSE,            /* check_tags */
-    FALSE,            /* add_ECO (-e) */
-    FALSE,            /* parsing_ECO_file (-e) */
+    false,            /* check_tags */
+    false,            /* add_ECO (-e) */
+    false,            /* parsing_ECO_file (-e) */
     DONT_DIVIDE,      /* ECO_level (-E) */
     SAN,              /* output_format (-W) */
     MAX_LINE_LENGTH,  /* max_line_length (-w) */
-    FALSE,            /* use_virtual_hash_table (-Z) */
-    FALSE,            /* check_move_bounds (-b) */
-    FALSE,            /* match_only_checkmate (-M) */
-    FALSE,            /* match_only_stalemate (--stalemate) */
-    FALSE,            /* match_only_insufficient_material (--insufficient) */
-    TRUE,             /* keep_move_numbers (--nomovenumbers) */
-    TRUE,             /* keep_results (--noresults) */
-    TRUE,             /* keep_checks (--nochecks) */
-    FALSE,            /* output_evaluation (--evaluation) */
-    FALSE,            /* keep_broken_games (--keepbroken) */
-    FALSE,            /* suppress_redundant_ep_info (--nofauxep) */
-    FALSE,            /* json_format (--json) */
-    FALSE,            /* tsv_format (--tsv) */
-    FALSE,            /* tag_match_anywhere (--tagsubstr) */
-    FALSE,            /* match_underpromotion (--underpromotion) */
-    FALSE,            /* suppress_matched (--suppressmatched) */
+    false,            /* use_virtual_hash_table (-Z) */
+    false,            /* check_move_bounds (-b) */
+    false,            /* match_only_checkmate (-M) */
+    false,            /* match_only_stalemate (--stalemate) */
+    false,            /* match_only_insufficient_material (--insufficient) */
+    true,             /* keep_move_numbers (--nomovenumbers) */
+    true,             /* keep_results (--noresults) */
+    true,             /* keep_checks (--nochecks) */
+    false,            /* output_evaluation (--evaluation) */
+    false,            /* keep_broken_games (--keepbroken) */
+    false,            /* suppress_redundant_ep_info (--nofauxep) */
+    false,            /* json_format (--json) */
+    false,            /* tsv_format (--tsv) */
+    false,            /* tag_match_anywhere (--tagsubstr) */
+    false,            /* match_underpromotion (--underpromotion) */
+    false,            /* suppress_matched (--suppressmatched) */
     0,                /* depth_of_positional_search */
     0,                /* num_games_processed */
     0,                /* num_games_matched */
@@ -112,27 +111,27 @@ StateInfo GlobalState = {
     1,                /* startply (--startply) */
     0,                /* check_for_repetition (--repetition) */
     0,                /* check_for_N_move_rule (--fifty, --seventyfive) */
-    FALSE,            /* output_FEN_string */
-    FALSE,            /* add_FEN_comments (--fencomments) */
-    FALSE,            /* add_hashcode_comments (--hashcomments) */
-    FALSE,            /* add_position_match_comments (--markmatches) */
-    FALSE,            /* output_plycount (--plycount) */
-    FALSE,            /* output_total_plycount (--totalplycount) */
-    FALSE,            /* add_hashcode_tag (--addhashcode) */
-    FALSE,            /* fix_result_tags (--fixresulttags) */
-    FALSE,            /* fix_tag_strings (--fixtagstrings) */
-    FALSE,            /* add_fen_castling (--addfencastling) */
-    FALSE,            /* separate_comment_lines (--commentlines) */
-    FALSE,            /* split_variants (--separatevariants) */
-    FALSE,            /* reject_inconsistent_results (--nobadresults) */
-    FALSE,            /* allow_null_moves (--allownullmoves) */
-    FALSE,            /* allow_nested_comments (--nestedcomments) */
-    FALSE,            /* add_match_tag (--addmatchtag) */
-    FALSE,            /* add_matchlabel_tag (--addlabeltag) */
-    FALSE,            /* only_output_wanted_tags (--xroster) */
-    FALSE,            /* delete_same_setup (--deletesamesetup) */
-    FALSE,            /* lichess_comment_fix (--lichesscommentfix) */
-    FALSE,            /* keep_only_commented_games (--only_commented_games) */
+    false,            /* output_FEN_string */
+    false,            /* add_FEN_comments (--fencomments) */
+    false,            /* add_hashcode_comments (--hashcomments) */
+    false,            /* add_position_match_comments (--markmatches) */
+    false,            /* output_plycount (--plycount) */
+    false,            /* output_total_plycount (--totalplycount) */
+    false,            /* add_hashcode_tag (--addhashcode) */
+    false,            /* fix_result_tags (--fixresulttags) */
+    false,            /* fix_tag_strings (--fixtagstrings) */
+    false,            /* add_fen_castling (--addfencastling) */
+    false,            /* separate_comment_lines (--commentlines) */
+    false,            /* split_variants (--separatevariants) */
+    false,            /* reject_inconsistent_results (--nobadresults) */
+    false,            /* allow_null_moves (--allownullmoves) */
+    false,            /* allow_nested_comments (--nestedcomments) */
+    false,            /* add_match_tag (--addmatchtag) */
+    false,            /* add_matchlabel_tag (--addlabeltag) */
+    false,            /* only_output_wanted_tags (--xroster) */
+    false,            /* delete_same_setup (--deletesamesetup) */
+    false,            /* lichess_comment_fix (--lichesscommentfix) */
+    false,            /* keep_only_commented_games (--only_commented_games) */
     0,                /* split_depth_limit */
     NORMALFILE,       /* current_file_type */
     SETUP_TAG_OK,     /* setup_status */
@@ -365,28 +364,28 @@ int main(int argc, char *argv[]) {
   /* Make some adjustments to other settings if JSON output is required. */
   if (GlobalState.json_format) {
     if (GlobalState.output_format != EPD && GlobalState.output_format != CM &&
-        GlobalState.tsv_format == FALSE &&
+        GlobalState.tsv_format == false &&
         GlobalState.ECO_level == DONT_DIVIDE) {
-      GlobalState.keep_comments = FALSE;
-      GlobalState.keep_variations = FALSE;
-      GlobalState.keep_results = FALSE;
+      GlobalState.keep_comments = false;
+      GlobalState.keep_variations = false;
+      GlobalState.keep_results = false;
     } else {
       fprintf(GlobalState.logfile, "JSON output is not currently supported "
                                    "with -E, -Wepd, -tsv or -Wcm\n");
-      GlobalState.json_format = FALSE;
+      GlobalState.json_format = false;
     }
   }
 
   /* Make some adjustments to other settings if TSV output is required. */
   if (GlobalState.tsv_format) {
-    if (GlobalState.json_format == FALSE && GlobalState.output_format != CM &&
-        GlobalState.separate_comment_lines == FALSE) {
+    if (GlobalState.json_format == false && GlobalState.output_format != CM &&
+        GlobalState.separate_comment_lines == false) {
       GlobalState.max_line_length = 0;
     } else {
       fprintf(GlobalState.logfile,
               "JSON output is not currently supported with --json or "
               "--commentlines and requires a fixed number of tags\n");
-      GlobalState.tsv_format = FALSE;
+      GlobalState.tsv_format = false;
     }
   }
 
@@ -397,10 +396,10 @@ int main(int argc, char *argv[]) {
     /* Read in a list of ECO lines in order to classify the games. */
     if (open_eco_file(GlobalState.eco_file)) {
       /* Indicate that the ECO file is currently being parsed. */
-      GlobalState.parsing_ECO_file = TRUE;
+      GlobalState.parsing_ECO_file = true;
       yyparse(ECOFILE);
       reset_line_number();
-      GlobalState.parsing_ECO_file = FALSE;
+      GlobalState.parsing_ECO_file = false;
     } else {
       fprintf(GlobalState.logfile, "Unable to open the ECO file %s.\n",
               GlobalState.eco_file);

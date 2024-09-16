@@ -22,16 +22,17 @@
 #ifndef DECODE_H
 #define DECODE_H
 
+#include <stdbool.h>
+
 #include "typedef.h"
 
 Move *new_move_structure(void);
 Piece is_piece(const unsigned char *move);
 Move *decode_move(const unsigned char *move_string);
 Move *decode_algebraic(Move *move_details, Board *board);
-Boolean is_check(char c);
-Boolean is_col(char c);
-Boolean is_rank(char c);
-Boolean move_seems_valid(const unsigned char *move_string);
+bool is_check(char c);
+bool is_col(char c);
+bool is_rank(char c);
+bool move_seems_valid(const unsigned char *move_string);
 
-#endif	// DECODE_H
-
+#endif // DECODE_H

@@ -32,7 +32,7 @@
 #include <unistd.h>
 #endif
 #include "apply.h"
-#include "bool.h"
+
 #include "decode.h"
 #include "defs.h"
 #include "grammar.h"
@@ -46,12 +46,12 @@
 #include "typedef.h"
 
 /* Prototypes for the functions in this file. */
-static Boolean extract_yytext(const unsigned char *symbol_start,
-                              const unsigned char *linep);
+static bool extract_yytext(const unsigned char *symbol_start,
+                           const unsigned char *linep);
 static int identify_tag(const char *tag_string);
 static TagName make_new_tag(const char *tag);
-static Boolean open_input(const char *infile);
-static Boolean open_input_file(int file_number);
+static bool open_input(const char *infile);
+static bool open_input_file(int file_number);
 /* When a move is saved, what is known of its source and destination coordinates
  * should also be saved.
  */
@@ -97,7 +97,7 @@ static unsigned tag_list_length = 0;
 /* Which tags, if any, are to be suppressed in the output.
  * The indices are the same as for TagList.
  */
-static Boolean *suppressed_tags;
+static bool *suppressed_tags;
 /* Nested comment depth: GlobalState.allow_nested_comments. */
 static unsigned comment_depth = 0;
 
@@ -108,13 +108,13 @@ static void init_list_of_known_tags(void) {
   unsigned i;
   tag_list_length = ORIGINAL_NUMBER_OF_TAGS;
   TagList = (const char **)malloc_or_die(tag_list_length * sizeof(*TagList));
-  /* FALSE by default. */
+  /* false by default. */
   suppressed_tags =
-      (Boolean *)malloc_or_die(tag_list_length * sizeof(*suppressed_tags));
+      (bool *)malloc_or_die(tag_list_length * sizeof(*suppressed_tags));
   /* Be paranoid and put a string in every entry. */
   for (i = 0; i < tag_list_length; i++) {
     TagList[i] = "";
-    suppressed_tags[i] = FALSE;
+    suppressed_tags[i] = false;
   }
   TagList[ANNOTATOR_TAG] = "Annotator";
   TagList[BLACK_TAG] = "Black";
@@ -175,10 +175,10 @@ static TagName make_new_tag(const char *tag) {
   tag_list_length++;
   TagList = (const char **)realloc_or_die((void *)TagList,
                                           tag_list_length * sizeof(*TagList));
-  suppressed_tags = (Boolean *)realloc_or_die(
+  suppressed_tags = (bool *)realloc_or_die(
       (void *)suppressed_tags, tag_list_length * sizeof(*suppressed_tags));
   TagList[tag_index] = copy_string(tag);
-  suppressed_tags[tag_index] = FALSE;
+  suppressed_tags[tag_index] = false;
   /* Ensure that the game header's tags array can accommodate
    * the new tag.
    */
@@ -197,14 +197,14 @@ const char *tag_header_string(TagName tag) {
   }
 }
 
-Boolean is_suppressed_tag(TagName tag) {
+bool is_suppressed_tag(TagName tag) {
   if (tag < tag_list_length) {
     return suppressed_tags[tag];
   } else {
     fprintf(GlobalState.logfile, "Internal error in is_suppressed_tag(%d)\n",
             tag);
     exit(1);
-    return FALSE;
+    return false;
   }
 }
 
@@ -214,7 +214,7 @@ void suppress_tag(const char *tag_string) {
   if (tag_item < 0) {
     tag_item = make_new_tag(tag_string);
   }
-  suppressed_tags[tag_item] = TRUE;
+  suppressed_tags[tag_item] = true;
 }
 
 /* Initialise ChTab[], the classification of the initial characters
@@ -340,7 +340,7 @@ LinePair gather_string(char *line, unsigned char *linep) {
   char ch;
   unsigned len = 0;
   char *str;
-  Boolean end_of_string = FALSE;
+  bool end_of_string = false;
 
   do {
     ch = *linep++;
@@ -352,10 +352,10 @@ LinePair gather_string(char *line, unsigned char *linep) {
       if (ch == '\0') {
         fprintf(GlobalState.logfile, "Missing escaped character in string.\n");
         print_error_context(GlobalState.logfile);
-        end_of_string = TRUE;
+        end_of_string = true;
       }
     } else if (ch == '"' || ch == '\0') {
-      end_of_string = TRUE;
+      end_of_string = true;
     } else {
       /* Ordinary character. */
     }
@@ -367,11 +367,11 @@ LinePair gather_string(char *line, unsigned char *linep) {
      * is the termination point.
      */
     unsigned char *lookahead = linep;
-    Boolean malformed = FALSE;
+    bool malformed = false;
     while (*lookahead != '\0' && ChTab[*lookahead] != TAG_END) {
       TokenType tt = ChTab[*lookahead];
       if (tt != WHITESPACE) {
-        malformed = TRUE;
+        malformed = true;
       }
       lookahead++;
     }
@@ -454,7 +454,7 @@ LinePair gather_string(char *line, unsigned char *linep) {
  * Is ch of the given character class?
  * External access to ChTab.
  */
-Boolean is_character_class(unsigned char ch, TokenType character_class) {
+bool is_character_class(unsigned char ch, TokenType character_class) {
   return ChTab[ch] == character_class;
 }
 
@@ -764,10 +764,10 @@ LinePair gather_tag(char *line, unsigned char *linep) {
   return resulting_line;
 }
 
-static Boolean extract_yytext(const unsigned char *symbol_start,
-                              const unsigned char *linep) {
+static bool extract_yytext(const unsigned char *symbol_start,
+                           const unsigned char *linep) {
   /* Whether the string fitted. */
-  Boolean Ok = TRUE;
+  bool Ok = true;
   long len = linep - symbol_start;
 
   if (len < MAX_YYTEXT) {
@@ -779,7 +779,7 @@ static Boolean extract_yytext(const unsigned char *symbol_start,
     if (!GlobalState.skipping_current_game)
       fprintf(GlobalState.logfile, "Symbol %s exceeds length of %u.\n", yytext,
               MAX_YYTEXT);
-    Ok = FALSE;
+    Ok = false;
   }
   return Ok;
 }
@@ -949,11 +949,11 @@ static TokenType get_next_symbol(void) {
             /* Only classify it as a move if it
              * seems to be a complete move.
              */
-            Boolean ok;
+            bool ok;
             if (move_seems_valid(yytext)) {
               save_move(yytext);
               token = MOVE;
-              ok = TRUE;
+              ok = true;
             } else if (next_char == 'e') {
               /* Consider for possible en passant notation. */
               const int num_ep_strings = 2;
@@ -971,14 +971,14 @@ static TokenType get_next_symbol(void) {
                 /* Accept. */
                 /* PGN has no representation for ep, so just accept without
                  * checking. */
-                ok = TRUE;
+                ok = true;
                 token = NO_TOKEN;
                 linep = ((unsigned char *)symbol_start) + strlen(ep[epi]);
               } else {
-                ok = FALSE;
+                ok = false;
               }
             } else {
-              ok = FALSE;
+              ok = false;
             }
             if (!ok) {
               if (!GlobalState.skipping_current_game) {
@@ -1128,18 +1128,18 @@ TokenType next_token(void) {
   return token;
 }
 
-/* Return TRUE if token is one to skip when looking for
+/* Return true if token is one to skip when looking for
  * the start or end of a game.
  */
-static Boolean skip_token(TokenType token) {
+static bool skip_token(TokenType token) {
   switch (token) {
   case TERMINATING_RESULT:
   case TAG:
   case MOVE:
   case EOF_TOKEN:
-    return FALSE;
+    return false;
   default:
-    return TRUE;
+    return true;
   }
 }
 
@@ -1150,7 +1150,7 @@ static Boolean skip_token(TokenType token) {
  */
 TokenType skip_to_next_game(TokenType token) {
   if (skip_token(token)) {
-    GlobalState.skipping_current_game = TRUE;
+    GlobalState.skipping_current_game = true;
     do {
       if (token == COMMENT) {
         /* Free the space. */
@@ -1162,7 +1162,7 @@ TokenType skip_to_next_game(TokenType token) {
       }
       token = next_token();
     } while (skip_token(token));
-    GlobalState.skipping_current_game = FALSE;
+    GlobalState.skipping_current_game = false;
   }
   return token;
 }
@@ -1399,7 +1399,7 @@ void add_filename_to_source_list(
 }
 
 /* Use infile as the input source. */
-static Boolean open_input(const char *infile) {
+static bool open_input(const char *infile) {
   yyin = fopen(infile, "rb");
   if (yyin != NULL) {
     GlobalState.current_input_file = infile;
@@ -1412,24 +1412,24 @@ static Boolean open_input(const char *infile) {
 }
 
 /* Simple interface to open_input for the ECO file. */
-Boolean open_eco_file(const char *eco_file) { return open_input(eco_file); }
+bool open_eco_file(const char *eco_file) { return open_input(eco_file); }
 
 /* Open the input file whose number is the argument. */
-static Boolean open_input_file(int file_number) {
+static bool open_input_file(int file_number) {
   /* Depending on the type of file, ensure that the
    * current_file_type is set correctly.
    */
   if (open_input(list_of_files.files[file_number])) {
     GlobalState.current_file_type = list_of_files.file_type[file_number];
-    return TRUE;
+    return true;
   } else {
-    return FALSE;
+    return false;
   }
 }
 
 /* Open the first input file. */
-Boolean open_first_file(void) {
-  Boolean ok = TRUE;
+bool open_first_file(void) {
+  bool ok = true;
 
   if (list_of_files.num_files == 0) {
     /* Use standard input. */
@@ -1446,7 +1446,7 @@ Boolean open_first_file(void) {
   } else {
     fprintf(GlobalState.logfile, "Unable to open the PGN file: %s\n",
             input_file_name(0));
-    ok = FALSE;
+    ok = false;
   }
   return ok;
 }

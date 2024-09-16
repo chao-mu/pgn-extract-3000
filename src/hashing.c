@@ -30,7 +30,7 @@
 /* For unlink() */
 #include <unistd.h>
 #endif
-#include "bool.h"
+
 #include "defs.h"
 #include "hashing.h"
 #include "lex.h"
@@ -105,10 +105,10 @@ static const char *previous_virtual_occurance(Game game_details);
 
 /*
  * Check whether the position counts indicate a desired repetition.
- * If we are checking for repetition return TRUE if it does and FALSE otherwise.
- * If we are not then return TRUE.
+ * If we are checking for repetition return true if it does and false otherwise.
+ * If we are not then return true.
  */
-Boolean check_for_only_repetition(PositionCount *position_counts) {
+bool check_for_only_repetition(PositionCount *position_counts) {
   if (GlobalState.check_for_repetition > 0) {
     PositionCount *entry = position_counts;
     while (entry != NULL && entry->count < GlobalState.check_for_repetition) {
@@ -116,7 +116,7 @@ Boolean check_for_only_repetition(PositionCount *position_counts) {
     }
     return entry != NULL;
   } else {
-    return TRUE;
+    return true;
   }
 }
 
@@ -142,20 +142,20 @@ static unsigned short encode_castling_rights(const Board *board) {
 }
 
 /*
- * Return TRUE if the position on board matches the entry details
+ * Return true if the position on board matches the entry details
  * for the purposes of position repetition matches:
  *     + Same board position (based on a hash value)
  *     + Same castling rights.
  *     + Same en passant status (i.e., no ep possible).
  *     + Same player to move.
  */
-static Boolean position_matches(PositionCount *entry, const Board *board) {
+static bool position_matches(PositionCount *entry, const Board *board) {
   if (board->weak_hash_value != entry->hash_value) {
-    return FALSE;
+    return false;
   } else if (board->to_move != entry->to_move) {
-    return FALSE;
+    return false;
   } else if (encode_castling_rights(board) != entry->castling_rights) {
-    return FALSE;
+    return false;
   } else {
     if (board->EnPassant) {
       return board->ep_rank == entry->ep_rank && board->ep_col == entry->ep_col;
@@ -331,7 +331,7 @@ static int write_virtual_entry(long where, const VirtualHashLog *entry) {
 static const char *previous_virtual_occurance(Game game_details) {
   unsigned ix = game_details.final_hash_value % LOG_TABLE_SIZE;
   VirtualHashLog entry;
-  Boolean duplicate = FALSE;
+  bool duplicate = false;
   const char *original_filename = NULL;
 
   /* Are we keeping this information? */
@@ -350,7 +350,7 @@ static const char *previous_virtual_occurance(Game game_details) {
            * Determine where it first occured.
            */
           original_filename = input_file_name(entry.file_number);
-          duplicate = TRUE;
+          duplicate = true;
         } else if (entry.next >= 0l) {
           keep_going = retrieve_virtual_entry(entry.next, &entry);
         } else {
@@ -418,7 +418,7 @@ const char *previous_occurance(Game game_details, unsigned plycount) {
     if (GlobalState.suppress_duplicates || GlobalState.suppress_originals ||
         GlobalState.fuzzy_match_duplicates ||
         GlobalState.duplicate_file != NULL) {
-      Boolean duplicate = FALSE;
+      bool duplicate = false;
       // Entry index.
       unsigned ix;
       HashLog *entry;
@@ -431,7 +431,7 @@ const char *previous_occurance(Game game_details, unsigned plycount) {
             entry->cumulative_hash_value ==
                 game_details.cumulative_hash_value) {
           /* An exact match. */
-          duplicate = TRUE;
+          duplicate = true;
           /* Determine where it first occurred. */
           original_filename = input_file_name(entry->file_number);
         } else {
@@ -445,11 +445,11 @@ const char *previous_occurance(Game game_details, unsigned plycount) {
           if (GlobalState.fuzzy_match_depth == 0 &&
               entry->final_hash_value == game_details.final_hash_value) {
             /* Accept positional match at the end of the game. */
-            duplicate = TRUE;
+            duplicate = true;
           } else {
             /* Need to check at the fuzzy_match_depth. */
             if (entry->final_hash_value == game_details.fuzzy_duplicate_hash) {
-              duplicate = TRUE;
+              duplicate = true;
             }
           }
           if (duplicate) {
@@ -504,31 +504,31 @@ static HashLog *polyglot_codes_of_interest[SETUP_TABLE_SIZE];
  * games processed. This avoids having to generate the zobrist
  * hash for all games that have no Setup/FEN tags.
  */
-static Boolean standard_start_seen = FALSE;
+static bool standard_start_seen = false;
 
 /* Check whether the starting position of the given game
  * has been met before.
- * Return FALSE if duplicate starting positions are not being
+ * Return false if duplicate starting positions are not being
  * deleted or if the current position has not been met before.
- * Otherwise return TRUE.
+ * Otherwise return true.
  */
-Boolean check_duplicate_setup(const Game *game_details) {
-  Boolean keep = TRUE;
+bool check_duplicate_setup(const Game *game_details) {
+  bool keep = true;
   if (GlobalState.delete_same_setup) {
     if (game_details->tags[FEN_TAG] != NULL) {
       uint64_t hash =
           generate_zobrist_hash_from_fen(game_details->tags[FEN_TAG]);
       unsigned ix = hash % SETUP_TABLE_SIZE;
-      Boolean found = FALSE;
+      bool found = false;
       for (HashLog *entry = polyglot_codes_of_interest[ix];
            !found && (entry != NULL); entry = entry->next) {
         /* We can test against just the position value. */
         if (entry->final_hash_value == hash) {
-          found = TRUE;
+          found = true;
         }
       }
       if (found) {
-        keep = FALSE;
+        keep = false;
       } else {
         HashLog *entry = (HashLog *)malloc_or_die(sizeof(*entry));
         /* We don't include the cumulative hash value as this
@@ -541,9 +541,9 @@ Boolean check_duplicate_setup(const Game *game_details) {
         polyglot_codes_of_interest[ix] = entry;
       }
     } else if (standard_start_seen) {
-      keep = FALSE;
+      keep = false;
     } else {
-      standard_start_seen = TRUE;
+      standard_start_seen = true;
     }
   }
   return keep;

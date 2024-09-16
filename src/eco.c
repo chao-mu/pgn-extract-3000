@@ -21,7 +21,7 @@
 
 #include "eco.h"
 #include "apply.h"
-#include "bool.h"
+
 #include "defs.h"
 #include "lex.h"
 #include "map.h"
@@ -141,7 +141,7 @@ void save_eco_details(const Game *game_details, const Board *final_position,
   unsigned ix = game_details->final_hash_value % ECO_TABLE_SIZE;
   EcoLog *entry = NULL;
   /* Assume that it can be saved: that there is no collision. */
-  Boolean can_save = TRUE;
+  bool can_save = true;
   /* In an effort to save string space, keep a record of the
    * last entry stored, because there is a good chance that it
    * will have the same ECO_tag and Opening_tag as the next
@@ -182,7 +182,7 @@ void save_eco_details(const Game *game_details, const Board *final_position,
       fprintf(GlobalState.logfile, "%s %s %s\n", tag, opening, variation);
       fprintf(GlobalState.logfile, "Possible duplicate move sequences.\n");
 
-      can_save = FALSE;
+      can_save = false;
     }
   }
 

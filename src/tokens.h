@@ -19,45 +19,68 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
-        /* Define a type for lexical classification of tokens.
-         * Not all of these values are returned to the parser.
-         */
+/* Define a type for lexical classification of tokens.
+ * Not all of these values are returned to the parser.
+ */
 #ifndef TOKENS_H
 #define TOKENS_H
 
 #include "typedef.h"
 
 typedef enum {
-    /* The first section of tokens contains those that are
-     * returned to the parser as complete token identifications.
-     */
-    EOF_TOKEN, TAG, STRING, COMMENT, NAG,
-    CHECK_SYMBOL, MOVE_NUMBER, RAV_START, RAV_END,
-    MOVE, TERMINATING_RESULT,
-    /* The remaining tokens are those that are used to
-     * perform the identification.  They are not handled by
-     * the parser.
-     */
-    WHITESPACE, TAG_START, TAG_END, DOUBLE_QUOTE,
-    COMMENT_START, COMMENT_END, ANNOTATE,
-    DOT, PERCENT, SEMICOLON, ESCAPE, ALPHA, DIGIT,
-    STAR, DASH, SLASH, EOS, OPERATOR, NO_TOKEN, ERROR_TOKEN
+  /* The first section of tokens contains those that are
+   * returned to the parser as complete token identifications.
+   */
+  EOF_TOKEN,
+  TAG,
+  STRING,
+  COMMENT,
+  NAG,
+  CHECK_SYMBOL,
+  MOVE_NUMBER,
+  RAV_START,
+  RAV_END,
+  MOVE,
+  TERMINATING_RESULT,
+  /* The remaining tokens are those that are used to
+   * perform the identification.  They are not handled by
+   * the parser.
+   */
+  WHITESPACE,
+  TAG_START,
+  TAG_END,
+  DOUBLE_QUOTE,
+  COMMENT_START,
+  COMMENT_END,
+  ANNOTATE,
+  DOT,
+  PERCENT,
+  SEMICOLON,
+  ESCAPE,
+  ALPHA,
+  DIGIT,
+  STAR,
+  DASH,
+  SLASH,
+  EOS,
+  OPERATOR,
+  NO_TOKEN,
+  ERROR_TOKEN
 } TokenType;
 
 typedef union {
-    /* This string is used to retain tag and result information. */
-    char *token_string;
-    /* Move information. */
-    Move *move_details;
-    unsigned move_number;
-    StringList *nags;
-    Variation *variation_details;
-    CommentList *comment;
-    /* An index into the Game_Header.Tags array for tag strings. */
-    unsigned tag_index;
+  /* This string is used to retain tag and result information. */
+  char *token_string;
+  /* Move information. */
+  Move *move_details;
+  unsigned move_number;
+  StringList *nags;
+  Variation *variation_details;
+  CommentList *comment;
+  /* An index into the Game_Header.Tags array for tag strings. */
+  unsigned tag_index;
 } YYSTYPE;
 
 extern YYSTYPE yylval;
 
-#endif	// TOKENS_H
-
+#endif // TOKENS_H
