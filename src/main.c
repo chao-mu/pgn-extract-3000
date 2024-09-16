@@ -19,6 +19,11 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "argsfile.h"
 #include "bool.h"
 #include "defs.h"
@@ -26,7 +31,6 @@
 #include "grammar.h"
 #include "hashing.h"
 #include "lex.h"
-#include "lists.h"
 #include "map.h"
 #include "moves.h"
 #include "mymalloc.h"
@@ -34,10 +38,6 @@
 #include "taglist.h"
 #include "tokens.h"
 #include "typedef.h"
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 /* The maximum length of an output line.  This is conservatively
  * slightly smaller than the PGN export standard of 80.
@@ -274,7 +274,7 @@ int main(int argc, char *argv[]) {
         process_argument(argument[1], filename);
       } break;
 
-        /* Arguments with a required following value. */
+      /* Arguments with a required following value. */
       case ECO_OUTPUT_LEVEL_ARGUMENT:
       case GAMES_PER_FILE_ARGUMENT:
       case LINE_WIDTH_ARGUMENT:

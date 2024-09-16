@@ -27,7 +27,6 @@
 #include "end.h"
 #include "hashing.h"
 #include "lex.h"
-#include "lists.h"
 #include "map.h"
 #include "moves.h"
 #include "mymalloc.h"

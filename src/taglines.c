@@ -26,7 +26,6 @@
 #include "defs.h"
 #include "lex.h"
 #include "lines.h"
-#include "lists.h"
 #include "moves.h"
 #include "output.h"
 #include "taglines.h"

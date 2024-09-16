@@ -38,7 +38,6 @@
 #include "grammar.h"
 #include "lex.h"
 #include "lines.h"
-#include "lists.h"
 #include "moves.h"
 #include "mymalloc.h"
 #include "output.h"

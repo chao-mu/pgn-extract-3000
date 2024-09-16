@@ -119,7 +119,7 @@ typedef struct {
      */
     uint64_t zobrist;
     /* The half-move clock since the last pawn move or capture. */
-    unsigned halfmove_clock;
+    unsigned int halfmove_clock;
 } Board;
 
 /* Define a type that can be used to create a list of possible source

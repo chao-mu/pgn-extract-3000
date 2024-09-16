@@ -28,7 +28,6 @@
 #include "fenmatcher.h"
 #include "lex.h"
 #include "lines.h"
-#include "lists.h"
 #include "moves.h"
 #include "mymalloc.h"
 #include "output.h"
@@ -462,6 +461,7 @@ static void read_args_file(const char *infile) {
         case TAG_ROSTER_ARGUMENT:
           process_argument(line[argument_prefix_len],
                            &line[argument_prefix_len + 1]);
+          break;
         case TAGS_ARGUMENT:
           /* Apply this type to subsequent lines. */
           linetype = nexttype;

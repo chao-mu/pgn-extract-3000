@@ -291,7 +291,8 @@ Board *new_fen_board(const char *fen) {
   Board *new_board = allocate_new_board();
   /* Start with a clear board. */
   static const Board initial_board = {
-      {{OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
+    /* Board */
+      .board={{OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
        {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
        {OFF, OFF, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, OFF,
         OFF},
@@ -312,27 +313,28 @@ Board *new_fen_board(const char *fen) {
        {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
        {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF}},
       /* Who to move next. */
-      WHITE,
+      .to_move=WHITE,
       /* Move number. */
-      1,
+      .move_number=1,
       /* Default castling rights. Support Chess960. */
-      'h',
-      'a',
-      'h',
-      'a',
+      .WKingCastle='h',
+      .WQueenCastle='a',
+      .BKingCastle='h',
+      .BQueenCastle='a',
       /* Initial king positions. */
-      'e',
-      FIRSTRANK,
-      'e',
-      LASTRANK,
+      .WKingCol='e',
+      .WKingRank=FIRSTRANK,
+      .BKingCol='e',
+      .BKingRank=LASTRANK,
       /* En Passant rights. */
-      FALSE,
-      0,
-      0,
+      .EnPassant=FALSE,
+      .ep_rank=0,
+      .ep_col=0,
       /* Initial hash value. */
-      0ul,
+      .weak_hash_value=0ul,
       /* half-move_clock */
-      0,
+      .zobrist=0,
+      .halfmove_clock=0,
   };
   Rank rank = LASTRANK;
   Col col;
@@ -653,7 +655,7 @@ void add_fen_castling(Game *game_details, Board *board) {
 Board *new_game_board(const char *fen) {
   Board *new_board = NULL;
   static const Board initial_board = {
-      {{OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
+      .board={{OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
        {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
        {OFF, OFF, W(ROOK), W(KNIGHT), W(BISHOP), W(QUEEN), W(KING), W(BISHOP),
         W(KNIGHT), W(ROOK), OFF, OFF},
@@ -674,27 +676,29 @@ Board *new_game_board(const char *fen) {
        {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
        {OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF}},
       /* Who to move next. */
-      WHITE,
+      .to_move=WHITE,
       /* Move number. */
-      1,
+      .move_number=1,
       /* Castling rights. Support Chess960. */
-      'h',
-      'a',
-      'h',
-      'a',
+      .WKingCastle='h',
+      .WQueenCastle='a',
+      .BKingCastle='h',
+      .BQueenCastle='a',
       /* Initial king positions. */
-      'e',
-      FIRSTRANK,
-      'e',
-      LASTRANK,
+      .WKingCol='e',
+      .WKingRank=FIRSTRANK,
+      .BKingCol='e',
+      .BKingRank=LASTRANK,
       /* En Passant rights. */
-      FALSE,
-      0,
-      0,
+      .EnPassant=FALSE,
+      .ep_rank=0,
+      .ep_col=0,
       /* Initial hash value. */
-      0ul,
+      .weak_hash_value=0ul,
+      /* Zobrist hash */
+      .zobrist=0,
       /* half-move_clock */
-      0,
+      .halfmove_clock=0,
   };
   /* Iterate over the columns. */
   Col col;

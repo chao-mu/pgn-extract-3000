@@ -37,7 +37,6 @@
 #include "fenmatcher.h"
 #include "lex.h"
 #include "lines.h"
-#include "lists.h"
 #include "map.h"
 #include "mymalloc.h"
 #include "taglist.h"

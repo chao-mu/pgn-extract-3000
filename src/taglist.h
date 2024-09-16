@@ -19,16 +19,16 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
-        /* Define indices for the set of pre-defined tags.
-         * Higher values are created dynamically as new
-         * tags are recognised in the source files.
-         */
+/* Define indices for the set of pre-defined tags.
+ * Higher values are created dynamically as new
+ * tags are recognised in the source files.
+ */
 
-    /* List the tags so that the strings that they represent
-     * would be in alphabetical order. E.g. note that EVENT_TAG and
-     * EVENT_DATE_TAG should be in this order because the strings are
-     * "Event" and "EventDate".
-     */
+/* List the tags so that the strings that they represent
+ * would be in alphabetical order. E.g. note that EVENT_TAG and
+ * EVENT_DATE_TAG should be in this order because the strings are
+ * "Event" and "EventDate".
+ */
 #ifndef TAGLIST_H
 #define TAGLIST_H
 
@@ -110,5 +110,30 @@ typedef enum {
     ORIGINAL_NUMBER_OF_TAGS
 } TagName;
 
-#endif	// TAGLIST_H
+#define INIT_LIST_SPACE 10
+#define MORE_LIST_SPACE 5
+
+/* Tags to be sought may have an operator to specify the
+ * relationship between value in the tag list and that in
+ * the game. For instance, in order to find games before 1962
+ * use Date < "1962". The < turns into a LESS_THAN operator.
+ * Potentially any tag may have an operator, but not all make
+ * sense in all circumstances.
+ */
+typedef enum {
+    NONE,
+    LESS_THAN, GREATER_THAN, EQUAL_TO, NOT_EQUAL_TO,
+    LESS_THAN_OR_EQUAL_TO, GREATER_THAN_OR_EQUAL_TO,
+    REGEX
+} TagOperator;
+
+void add_tag_to_negative_list(int tag, const char *tagstr, TagOperator operator);
+void add_tag_to_positive_list(int tag, const char *tagstr, TagOperator operator);
+Boolean check_setup_tag(char *Details[]);
+Boolean check_ECO_tag(char *Details[], Boolean positive_match);
+Boolean check_tag_details_not_ECO(char *Details[],int num_details, Boolean positive_match);
+void extract_tag_argument(const char *argstr, Boolean positive_match);
+void init_tag_lists(void);
+
+#endif // TAGLIST_H
 
