@@ -23,9 +23,9 @@
 #ifndef ECO_H
 #define ECO_H
 
-#include <stdbool.h>
-
 #include "typedef.h"
+
+#include <stdbool.h>
 
 typedef struct EcoLog {
   HashCode required_hash_value;

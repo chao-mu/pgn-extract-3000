@@ -26,10 +26,10 @@
 #ifndef LEX_H
 #define LEX_H
 
-#include <stdbool.h>
-
 #include "taglist.h"
 #include "tokens.h"
+
+#include <stdbool.h>
 
 typedef struct {
   /* Start of the malloc'ed line. */

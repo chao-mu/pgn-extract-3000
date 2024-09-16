@@ -36,6 +36,7 @@
 #include "tokens.h"
 #include "typedef.h"
 #include "zobrist.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>

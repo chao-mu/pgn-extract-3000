@@ -40,10 +40,10 @@
 #ifndef TYPEDEF_H
 #define TYPEDEF_H
 
+#include "defs.h"
+
 #include <stdbool.h>
 #include <stdio.h>
-
-#include "defs.h"
 
 typedef enum {
   SOURCE,

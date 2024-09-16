@@ -20,13 +20,14 @@
  */
 
 #include "fenmatcher.h"
-#include "apply.h"
 
+#include "apply.h"
 #include "defs.h"
 #include "end.h"
 #include "grammar.h"
 #include "mymalloc.h"
 #include "typedef.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>

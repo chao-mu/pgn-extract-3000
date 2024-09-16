@@ -37,12 +37,13 @@
  */
 
 #include "zobrist.h"
-#include "apply.h"
 
+#include "apply.h"
 #include "decode.h"
 #include "defs.h"
 #include "grammar.h"
 #include "typedef.h"
+
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>

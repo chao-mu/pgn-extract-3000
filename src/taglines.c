@@ -19,18 +19,19 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include "taglines.h"
 
 #include "defs.h"
 #include "lex.h"
 #include "lines.h"
 #include "moves.h"
 #include "output.h"
-#include "taglines.h"
 #include "taglist.h"
 #include "tokens.h"
 #include "typedef.h"
+
+#include <stdio.h>
+#include <stdlib.h>
 
 static FILE *yyin = NULL;
 

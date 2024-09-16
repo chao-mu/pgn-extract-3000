@@ -22,9 +22,9 @@
 #ifndef MAP_H
 #define MAP_H
 
-#include <stdbool.h>
-
 #include "typedef.h"
+
+#include <stdbool.h>
 
 void init_hashtab(void);
 bool determine_move_details(Colour colour, Move *move_details, Board *board);

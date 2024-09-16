@@ -19,23 +19,23 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
+#include "output.h"
+
+#include "apply.h"
+#include "defs.h"
+#include "grammar.h"
+#include "lex.h"
+#include "mymalloc.h"
+#include "taglist.h"
+#include "tokens.h"
+#include "typedef.h"
+
 #include <ctype.h>
 #include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "apply.h"
-
-#include "defs.h"
-#include "grammar.h"
-#include "lex.h"
-#include "mymalloc.h"
-#include "output.h"
-#include "taglist.h"
-#include "tokens.h"
-#include "typedef.h"
 
 /* Functions for outputting games in the required format. */
 

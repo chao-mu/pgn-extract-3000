@@ -22,10 +22,10 @@
 #ifndef OUTPUT_H
 #define OUTPUT_H
 
-#include <stdbool.h>
-
 #include "taglist.h"
 #include "typedef.h"
+
+#include <stdbool.h>
 
 void format_game(Game *current_game, FILE *outputfile);
 void print_str(FILE *fp, const char *str);

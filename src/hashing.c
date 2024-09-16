@@ -19,6 +19,16 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
+#include "hashing.h"
+
+#include "defs.h"
+#include "lex.h"
+#include "mymalloc.h"
+#include "taglist.h"
+#include "tokens.h"
+#include "typedef.h"
+#include "zobrist.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,15 +40,6 @@
 /* For unlink() */
 #include <unistd.h>
 #endif
-
-#include "defs.h"
-#include "hashing.h"
-#include "lex.h"
-#include "mymalloc.h"
-#include "taglist.h"
-#include "tokens.h"
-#include "typedef.h"
-#include "zobrist.h"
 
 /* Routines, similar in nature to those in apply.c
  * to implement a duplicate hash-table lookup using

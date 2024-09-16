@@ -22,9 +22,9 @@
 #ifndef APPLY_H
 #define APPLY_H
 
-#include <stdbool.h>
-
 #include "typedef.h"
+
+#include <stdbool.h>
 
 void add_fen_castling(Game *game_details, Board *board);
 bool apply_move_list(Game *game_details, unsigned *plycount, unsigned max_depth,

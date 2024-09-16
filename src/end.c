@@ -20,8 +20,8 @@
  */
 
 #include "end.h"
-#include "apply.h"
 
+#include "apply.h"
 #include "defs.h"
 #include "grammar.h"
 #include "lex.h"
@@ -30,6 +30,7 @@
 #include "taglist.h"
 #include "tokens.h"
 #include "typedef.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>

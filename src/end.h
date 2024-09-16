@@ -22,9 +22,9 @@
 #ifndef END_H
 #define END_H
 
-#include <stdbool.h>
-
 #include "typedef.h"
+
+#include <stdbool.h>
 
 /* Define a type to represent classes of occurrance. */
 typedef enum {

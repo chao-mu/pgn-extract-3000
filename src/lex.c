@@ -19,6 +19,20 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
+#include "lex.h"
+
+#include "apply.h"
+#include "decode.h"
+#include "defs.h"
+#include "grammar.h"
+#include "lines.h"
+#include "moves.h"
+#include "mymalloc.h"
+#include "output.h"
+#include "taglist.h"
+#include "tokens.h"
+#include "typedef.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,19 +45,6 @@
 #else
 #include <unistd.h>
 #endif
-#include "apply.h"
-
-#include "decode.h"
-#include "defs.h"
-#include "grammar.h"
-#include "lex.h"
-#include "lines.h"
-#include "moves.h"
-#include "mymalloc.h"
-#include "output.h"
-#include "taglist.h"
-#include "tokens.h"
-#include "typedef.h"
 
 /* Prototypes for the functions in this file. */
 static bool extract_yytext(const unsigned char *symbol_start,

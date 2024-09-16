@@ -26,9 +26,9 @@
 #ifndef HASHING_H
 #define HASHING_H
 
-#include <stdbool.h>
-
 #include "typedef.h"
+
+#include <stdbool.h>
 
 typedef struct HashLog {
   /* Store both the final position hash value and

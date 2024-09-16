@@ -19,17 +19,18 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
+#include "taglist.h"
+
+#include "defs.h"
+#include "moves.h"
+#include "mymalloc.h"
+#include "typedef.h"
+
 #include <ctype.h>
 #include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "defs.h"
-#include "moves.h"
-#include "mymalloc.h"
-#include "taglist.h"
-#include "typedef.h"
 
 /* Define a type to permit tag strings to be associated with
  * a TagOperator for selecting relationships between them

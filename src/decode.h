@@ -22,9 +22,9 @@
 #ifndef DECODE_H
 #define DECODE_H
 
-#include <stdbool.h>
-
 #include "typedef.h"
+
+#include <stdbool.h>
 
 Move *new_move_structure(void);
 Piece is_piece(const unsigned char *move);

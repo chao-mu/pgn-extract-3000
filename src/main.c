@@ -19,11 +19,6 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "argsfile.h"
 #include "defs.h"
 #include "end.h"
@@ -37,6 +32,11 @@
 #include "taglist.h"
 #include "tokens.h"
 #include "typedef.h"
+
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* The maximum length of an output line.  This is conservatively
  * slightly smaller than the PGN export standard of 80.

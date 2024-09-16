@@ -22,9 +22,9 @@
 #ifndef FENMATCHER_H
 #define FENMATCHER_H
 
-#include <stdbool.h>
-
 #include "typedef.h"
+
+#include <stdbool.h>
 
 void add_fen_pattern(const char *fen_pattern, bool add_reverse,
                      const char *label);

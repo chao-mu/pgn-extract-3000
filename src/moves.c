@@ -29,8 +29,8 @@
  */
 
 #include "moves.h"
-#include "apply.h"
 
+#include "apply.h"
 #include "decode.h"
 #include "defs.h"
 #include "end.h"
@@ -42,6 +42,7 @@
 #include "taglist.h"
 #include "tokens.h"
 #include "typedef.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
