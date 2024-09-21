@@ -19,7 +19,7 @@
  *  https://www.cs.kent.ac.uk/people/staff/djb/
  */
 
-#include "end.h"
+#include "material.h"
 
 #include "apply.h"
 #include "defs.h"
@@ -44,7 +44,7 @@
  */
 
 /* Keep a list of endings to be found. */
-static Material_details *endings_to_match = NULL;
+static MaterialCriteria *endings_to_match = NULL;
 
 /* What kind of piece is the character, c, likely to represent?
  * NB: This is NOT the same as is_piece() in decode.c
@@ -87,9 +87,9 @@ static Piece is_English_piece(char c) {
 /* Initialise the count of required pieces prior to reading
  * in the data.
  */
-static Material_details *new_ending_details(bool both_colours) {
-  Material_details *details =
-      (Material_details *)malloc_or_die(sizeof(Material_details));
+static MaterialCriteria *new_ending_details(bool both_colours) {
+  MaterialCriteria *details =
+      (MaterialCriteria *)malloc_or_die(sizeof(MaterialCriteria));
   int c;
   Piece piece;
 
@@ -214,7 +214,7 @@ static const char *extract_combination(const char *p, Occurs *p_occurs,
  *        P1>= Exactly one pawn more than the opponent. (colour == BLACK)
  */
 static const char *extract_piece_information(const char *line,
-                                             Material_details *details,
+                                             MaterialCriteria *details,
                                              Colour colour) {
   const char *p = line;
   bool Ok = true;
@@ -282,7 +282,7 @@ static const char *extract_piece_information(const char *line,
 /* Extract the piece specification from line and fill out
  * details with the pattern information.
  */
-static bool decompose_line(const char *line, Material_details *details) {
+static bool decompose_line(const char *line, MaterialCriteria *details) {
   const char *p = line;
   bool Ok = true;
 
@@ -342,7 +342,7 @@ static bool decompose_line(const char *line, Material_details *details) {
 /* A new game to be looked for. Indicate that we have not
  * started matching any yet.
  */
-static void reset_match_depths(Material_details *endings) {
+static void reset_match_depths(MaterialCriteria *endings) {
   for (; endings != NULL; endings = endings->next) {
     endings->match_depth[WHITE] = 0;
     endings->match_depth[BLACK] = 0;
@@ -399,7 +399,7 @@ static bool piece_match(int num_available, int num_to_find, int num_opponents,
 /* Try to find a match against one player's pieces in the piece_set_colour
  * set of details_to_find.
  */
-static bool piece_set_match(const Material_details *details_to_find,
+static bool piece_set_match(const MaterialCriteria *details_to_find,
                             int num_pieces[2][NUM_PIECE_VALUES],
                             Colour game_colour, Colour piece_set_colour) {
   bool match = true;
@@ -459,7 +459,7 @@ static bool piece_set_match(const Material_details *details_to_find,
  * potential match would be missed. This could be considered
  * as a bug.
  */
-static bool material_match(Material_details *details_to_find,
+static bool material_match(MaterialCriteria *details_to_find,
                            int num_pieces[2][NUM_PIECE_VALUES],
                            Colour game_colour) {
   bool match = true;
@@ -549,7 +549,7 @@ static bool look_for_material_match(Game *game_details) {
   bool end_of_game = false;
   bool white_matches = false, black_matches = false;
   while (game_ok && !matches && !end_of_game) {
-    for (Material_details *details_to_find = endings_to_match;
+    for (MaterialCriteria *details_to_find = endings_to_match;
          !matches && (details_to_find != NULL);
          details_to_find = details_to_find->next) {
       /* Try before applying each move.
@@ -644,7 +644,7 @@ bool check_for_material_match(Game *game) {
 /* Does the board's material match the constraints of details_to_find?
  * Return true if it does, false otherwise.
  */
-bool constraint_material_match(Material_details *details_to_find,
+bool constraint_material_match(MaterialCriteria *details_to_find,
                                const Board *board) {
   /* Only a single match position is required. */
   details_to_find->move_depth = 0;
@@ -674,10 +674,10 @@ bool constraint_material_match(Material_details *details_to_find,
  * is a constraint of a FEN pattern and should not be
  * retained as a separate material match.
  */
-Material_details *process_material_description(const char *line,
+MaterialCriteria *process_material_description(const char *line,
                                                bool both_colours,
                                                bool pattern_constraint) {
-  Material_details *details = NULL;
+  MaterialCriteria *details = NULL;
 
   if (non_blank_line(line)) {
     details = new_ending_details(both_colours);

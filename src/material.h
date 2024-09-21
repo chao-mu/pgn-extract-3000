@@ -1,26 +1,5 @@
-/*
- *  This file is part of pgn-extract: a Portable Game Notation (PGN) extractor.
- *  Copyright (C) 1994-2024 David J. Barnes
- *
- *  pgn-extract is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  pgn-extract is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with pgn-extract. If not, see <http://www.gnu.org/licenses/>.
- *
- *  David J. Barnes may be contacted as d.j.barnes@kent.ac.uk
- *  https://www.cs.kent.ac.uk/people/staff/djb/
- */
-
-#ifndef END_H
-#define END_H
+#ifndef MATERIAL_H
+#define MATERIAL_H
 
 #include "typedef.h"
 
@@ -42,7 +21,7 @@ typedef enum {
 /* Define a structure to hold details on the occurrances of
  * each of the pieces.
  */
-typedef struct material_details {
+typedef struct MaterialCriteria {
   /* Whether the pieces are to be tried against
    * both colours.
    */
@@ -62,8 +41,15 @@ typedef struct material_details {
    * success. A full match is only returned when match_depth == move_depth.
    */
   unsigned match_depth[2];
-  struct material_details *next;
-} Material_details;
+  struct MaterialCriteria *next;
+} MaterialCriteria;
+
+/*
+typedef struct MaterialCriterias {
+  Material *curr;
+  Material *next;
+} MaterialCriterias;
+*/
 
 /* Character to separate a pattern from material constraints.
  * NB: This is used to add a material constraint to a FEN pattern.
@@ -72,11 +58,11 @@ typedef struct material_details {
 
 bool build_endings(const char *infile, bool both_colours);
 bool check_for_material_match(Game *game);
-bool constraint_material_match(Material_details *details_to_find,
+bool constraint_material_match(MaterialCriteria *details_to_find,
                                const Board *board);
 bool insufficient_material(const Board *board);
-Material_details *process_material_description(const char *line,
+MaterialCriteria *process_material_description(const char *line,
                                                bool both_colours,
                                                bool pattern_constraint);
 
-#endif // END_H
+#endif // MATERIAL_H

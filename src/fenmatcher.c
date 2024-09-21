@@ -23,8 +23,8 @@
 
 #include "apply.h"
 #include "defs.h"
-#include "end.h"
 #include "grammar.h"
+#include "material.h"
 #include "mymalloc.h"
 #include "typedef.h"
 
@@ -66,7 +66,7 @@ typedef struct FENPatternMatch {
   const char *optional_label;
   struct FENPatternMatch *alternative_rank;
   struct FENPatternMatch *next_rank;
-  Material_details *constraint;
+  MaterialCriteria *constraint;
 } FENPatternMatch;
 
 static FENPatternMatch *pattern_tree = NULL;
@@ -79,7 +79,7 @@ static bool matchone(char regchar, char textchar);
 static void convert_rank_to_text(const Board *board, Rank rank, char *text);
 static const char *reverse_fen_pattern(const char *pattern);
 static void pattern_tree_insert(char **ranks, const char *label,
-                                Material_details *constraint);
+                                MaterialCriteria *constraint);
 static void insert_pattern(FENPatternMatch *node, FENPatternMatch *next);
 static const char *pattern_match_rank(const Board *board,
                                       FENPatternMatch *pattern,
@@ -161,7 +161,7 @@ void add_fen_pattern(const char *fen_pattern, bool add_reverse,
     ranks[dividers][num_chars] = '\0';
   }
   if (ok) {
-    Material_details *constraint;
+    MaterialCriteria *constraint;
     if (*p == MATERIAL_CONSTRAINT) {
       p++;
       /* Deal with a constraint on the material that must also match. */
@@ -256,7 +256,7 @@ static const char *reverse_fen_pattern(const char *pattern) {
  * to consolidate similar patterns.
  */
 static void pattern_tree_insert(char **ranks, const char *label,
-                                Material_details *constraint) {
+                                MaterialCriteria *constraint) {
   FENPatternMatch *match = (FENPatternMatch *)malloc_or_die(sizeof(*match));
   /* Create a linked list for the ranks.
    * Place the label in the final link.

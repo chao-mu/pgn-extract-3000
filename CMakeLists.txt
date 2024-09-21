@@ -14,14 +14,13 @@ add_executable(
   src/eco.h
   src/taglist.h
   src/fenmatcher.c
-  src/end.h
-  src/bool.h
+  src/material.h
   src/hashing.h
   src/fenmatcher.h
   src/mymalloc.c
   src/moves.h
   src/taglist.c
-  src/end.c
+  src/material.c
   src/hashing.c
   src/lines.c
   src/zobrist.h

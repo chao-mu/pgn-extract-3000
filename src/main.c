@@ -21,11 +21,11 @@
 
 #include "argsfile.h"
 #include "defs.h"
-#include "end.h"
 #include "grammar.h"
 #include "hashing.h"
 #include "lex.h"
 #include "map.h"
+#include "material.h"
 #include "moves.h"
 #include "mymalloc.h"
 #include "output.h"
