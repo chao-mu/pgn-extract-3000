@@ -13,5 +13,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: make
+    - name: Generate Makefile
+      run: cmake .
+    - name: Build project
       run: make
