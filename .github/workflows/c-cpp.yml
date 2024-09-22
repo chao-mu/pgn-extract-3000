@@ -8,12 +8,11 @@ on:
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
-
+    name: Build Project
+    runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
-    - name: Generate Makefile
-      run: cmake .
-    - name: Build project
-      run: make
+      - name: Checkout Project
+        uses: actions/checkout@v4.1.7
+
+      - name: Build Project
+        uses: threeal/cmake-action@v2.0.0
