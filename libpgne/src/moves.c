@@ -39,8 +39,6 @@
 #include "map.h"
 #include "material.h"
 #include "mymalloc.h"
-#include "taglist.h"
-#include "tokens.h"
 #include "typedef.h"
 
 #include <ctype.h>
@@ -141,7 +139,7 @@ static char *strip_move_number(char *str) {
 /* Break up a single line of moves into a list of moves
  * comprising a variation.
  */
-static variation_list *compose_variation(char *line) {
+static variation_list *compose_variation(const StateInfo *globals, char *line) {
   variation_list *variation;
   variant_move *move_list;
   /* Keep track of the number of moves extracted from line. */
@@ -195,11 +193,11 @@ static variation_list *compose_variation(char *line) {
         }
         /* Beware of the potential for false matches. */
         if (strlen(move) > 1) {
-          fprintf(GlobalState.logfile,
+          fprintf(globals->logfile,
                   "Warning: %c in %s should not be followed by additional move "
                   "text.\n",
                   *move, move);
-          fprintf(GlobalState.logfile, "It could give false matches.\n");
+          fprintf(globals->logfile, "It could give false matches.\n");
         }
       } else if (*move == DISALLOWED_MOVE) {
         /* Odd numbered half-moves in the variant list are Black. */
@@ -224,19 +222,19 @@ static variation_list *compose_variation(char *line) {
 /* Read each line of input and decompose it into a variation
  * to be placed in the games_to_keep list.
  */
-void add_textual_variations_from_file(FILE *fpin) {
+void add_textual_variations_from_file(const StateInfo *globals, FILE *fpin) {
   char *line;
 
-  while ((line = read_line(fpin)) != NULL) {
-    add_textual_variation_from_line(line);
+  while ((line = read_line(globals, fpin)) != NULL) {
+    add_textual_variation_from_line(globals, line);
   }
 }
 
 /* Add the text of the given line to the list of games_to_keep.
  */
-void add_textual_variation_from_line(char *line) {
+void add_textual_variation_from_line(const StateInfo *globals, char *line) {
   if (non_blank_line(line)) {
-    variation_list *next_variation = compose_variation(line);
+    variation_list *next_variation = compose_variation(globals, line);
     if (next_variation != NULL) {
       next_variation->next = games_to_keep;
       games_to_keep = next_variation;
@@ -250,10 +248,10 @@ void add_textual_variation_from_line(char *line) {
 
 /* Break up a single line of moves into a list of moves
  * comprising a positional variation.
- * In doing so, set GlobalState.depth_of_positional_search
+ * In doing so, set globals->depth_of_positional_search
  * if this variation is longer than the default.
  */
-static Move *compose_positional_variation(char *line) {
+static Move *compose_positional_variation(StateInfo *globals, char *line) {
   char *move;
   /* Build a linked list of the moves of the variation. */
   Move *head = NULL, *tail = NULL;
@@ -266,10 +264,10 @@ static Move *compose_positional_variation(char *line) {
     if ((move = strip_move_number(move)) == NULL) {
       /* Only a move number. */
     } else {
-      Move *next = decode_move((unsigned char *)move);
+      Move *next = decode_move(globals, (unsigned char *)move);
 
       if (next == NULL) {
-        fprintf(GlobalState.logfile, "Failed to identify %s\n", move);
+        fprintf(globals->logfile, "Failed to identify %s\n", move);
         Ok = false;
       } else {
         /* Chain it on to the list. */
@@ -294,8 +292,8 @@ static Move *compose_positional_variation(char *line) {
      * Add some extras, in order to catch transpositions.
      */
     depth += 8;
-    if (depth > GlobalState.depth_of_positional_search) {
-      GlobalState.depth_of_positional_search = depth;
+    if (depth > globals->depth_of_positional_search) {
+      globals->depth_of_positional_search = depth;
     }
   } else {
     if (head != NULL) {
@@ -309,44 +307,44 @@ static Move *compose_positional_variation(char *line) {
 /* Read each line of input and decompose it into a positional variation
  * to be placed in the list of required hash values.
  */
-void add_positional_variations_from_file(FILE *fpin) {
+void add_positional_variations_from_file(StateInfo *globals, FILE *fpin) {
   char *line;
 
-  while ((line = read_line(fpin)) != NULL) {
-    add_positional_variation_from_line(line);
+  while ((line = read_line(globals, fpin)) != NULL) {
+    add_positional_variation_from_line(globals, line);
   }
 }
 
-void add_positional_variation_from_line(char *line) {
+void add_positional_variation_from_line(StateInfo *globals, char *line) {
   if (non_blank_line(line)) {
-    Move *next_variation = compose_positional_variation(line);
+    Move *next_variation = compose_positional_variation(globals, line);
     if (next_variation != NULL) {
       /* We need a NULL fen string, because this is from
        * the initial position.
        */
-      store_hash_value(next_variation, (const char *)NULL);
+      store_hash_value(globals, next_variation, (const char *)NULL);
       free_move_list(next_variation);
       /* We need to know globally that positional variations
        * are of interest.
        */
-      GlobalState.positional_variations = true;
+      globals->positional_variations = true;
     }
   }
 }
 
 /* Treat fen_string as being a position to be matched.
  */
-void add_fen_positional_match(const char *fen_string) {
-  store_hash_value((Move *)NULL, fen_string);
-  GlobalState.positional_variations = true;
+void add_fen_positional_match(StateInfo *globals, const char *fen_string) {
+  store_hash_value(globals, (Move *)NULL, fen_string);
+  globals->positional_variations = true;
 }
 
 /* Treat fen_pattern as being a position to be matched.
  */
-void add_fen_pattern_match(const char *fen_pattern, bool add_reverse,
-                           const char *label) {
-  add_fen_pattern(fen_pattern, add_reverse, label);
-  GlobalState.positional_variations = true;
+void add_fen_pattern_match(StateInfo *globals, const char *fen_pattern,
+                           bool add_reverse, const char *label) {
+  add_fen_pattern(globals, fen_pattern, add_reverse, label);
+  globals->positional_variations = true;
 }
 
 /* Roughly define a move character for the purposes of textual
@@ -634,8 +632,9 @@ static bool permutation_match(Move *current_game_head,
  * It will be if we are either not looking for checkmate-only
  * games, or if we are and the games does end in checkmate.
  */
-bool check_for_only_checkmate(const Game *game_details) {
-  if (GlobalState.match_only_checkmate) {
+bool check_for_only_checkmate(const StateInfo *globals,
+                              const Game *game_details) {
+  if (globals->match_only_checkmate) {
     const Move *moves = game_details->moves;
     /* Check that the final move is checkmate. */
     while (moves != NULL && moves->check_status != CHECKMATE) {
@@ -656,9 +655,10 @@ bool check_for_only_checkmate(const Game *game_details) {
  * It will be if we are either not looking for stalemate-only
  * games, or if we are and the games does end in stalemate.
  */
-bool check_for_only_stalemate(const Board *board, const Move *moves) {
-  if (GlobalState.match_only_stalemate) {
-    return is_stalemate(board, moves);
+bool check_for_only_stalemate(const StateInfo *globals, const Board *board,
+                              const Move *moves) {
+  if (globals->match_only_stalemate) {
+    return is_stalemate(globals, board, moves);
   } else {
     /* No restriction to a stalemate game. */
     return true;
@@ -669,8 +669,9 @@ bool check_for_only_stalemate(const Board *board, const Move *moves) {
  * It will be if we are either not looking for insufficient-material-only
  * games, or if we are and the games does end with insufficient material.
  */
-bool check_for_only_insufficient_material(const Board *board) {
-  if (GlobalState.match_only_insufficient_material) {
+bool check_for_only_insufficient_material(const StateInfo *globals,
+                                          const Board *board) {
+  if (globals->match_only_insufficient_material) {
     return is_insufficient_material(board);
   } else {
     /* No restriction to a stalemate game. */
@@ -682,7 +683,8 @@ bool check_for_only_insufficient_material(const Board *board) {
  * Determine whether the final position on the given board
  * is stalemate or not.
  */
-bool is_stalemate(const Board *board, const Move *moves) {
+bool is_stalemate(const StateInfo *globals, const Board *board,
+                  const Move *moves) {
   if (moves != NULL) {
     /* Check that the final move is not check or checkmate. */
     const Move *move = moves;
@@ -694,7 +696,7 @@ bool is_stalemate(const Board *board, const Move *moves) {
       return false;
     }
   }
-  return !at_least_one_move(board, board->to_move);
+  return !at_least_one_move(globals, board, board->to_move);
 }
 
 /*
@@ -709,14 +711,15 @@ static bool is_insufficient_material(const Board *board) {
  * It will be if it matches one of the current variations
  * and its tag details match those that we are interested in.
  */
-bool check_textual_variations(const Game *game_details) {
+bool check_textual_variations(const StateInfo *globals,
+                              const Game *game_details) {
   bool wanted = false;
   variation_list *variation;
 
   if (games_to_keep != NULL) {
     for (variation = games_to_keep; (variation != NULL) && !wanted;
          variation = variation->next) {
-      if (GlobalState.match_permutations) {
+      if (globals->match_permutations) {
         wanted = permutation_match(game_details->moves, *variation);
       } else {
         wanted = straight_match(game_details->moves, *variation);
@@ -734,11 +737,11 @@ bool check_textual_variations(const Game *game_details) {
 /* Determine whether the number of ply in this game
  * is within the bounds of what we want.
  */
-bool check_move_bounds(unsigned plycount) {
+bool check_move_bounds(const StateInfo *globals, unsigned plycount) {
 
-  if (GlobalState.check_move_bounds) {
-    return (GlobalState.lower_move_bound <= plycount) &&
-           (plycount <= GlobalState.upper_move_bound);
+  if (globals->check_move_bounds) {
+    return (globals->lower_move_bound <= plycount) &&
+           (plycount <= globals->upper_move_bound);
   } else {
     // No restriction.
     return true;

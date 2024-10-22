@@ -23,10 +23,8 @@
 
 #include "apply.h"
 #include "defs.h"
-#include "grammar.h"
 #include "material.h"
 #include "mymalloc.h"
-#include "typedef.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -78,10 +76,13 @@ static bool matchnccl(const char *regexp, const char *text);
 static bool matchone(char regchar, char textchar);
 static void convert_rank_to_text(const Board *board, Rank rank, char *text);
 static const char *reverse_fen_pattern(const char *pattern);
-static void pattern_tree_insert(char **ranks, const char *label,
+static void pattern_tree_insert(const StateInfo *globals, char **ranks,
+                                const char *label,
                                 MaterialCriteria *constraint);
-static void insert_pattern(FENPatternMatch *node, FENPatternMatch *next);
-static const char *pattern_match_rank(const Board *board,
+static void insert_pattern(const StateInfo *globals, FENPatternMatch *node,
+                           FENPatternMatch *next);
+static const char *pattern_match_rank(const StateInfo *globals,
+                                      const Board *board,
                                       FENPatternMatch *pattern,
                                       int patternIndex,
                                       char ranks[BOARDSIZE + 1][BOARDSIZE + 1]);
@@ -92,8 +93,8 @@ static const char *pattern_match_rank(const Board *board,
  * If label is non-NULL then associate it with fen_pattern for possible
  * output in a tag when the pattern is matched.
  */
-void add_fen_pattern(const char *fen_pattern, bool add_reverse,
-                     const char *label) {
+void add_fen_pattern(const StateInfo *globals, const char *fen_pattern,
+                     bool add_reverse, const char *label) {
   /* Check the pattern has reasonable syntax. */
   /* Count the number of rank dividers. */
   int dividers = 0;
@@ -127,7 +128,7 @@ void add_fen_pattern(const char *fen_pattern, bool add_reverse,
         in_closure = true;
       } else {
         ok = false;
-        fprintf(GlobalState.logfile, "Nested closures not allowed: %s\n",
+        fprintf(globals->logfile, "Nested closures not allowed: %s\n",
                 fen_pattern);
       }
     } else if (*p == CCL_END) {
@@ -135,14 +136,14 @@ void add_fen_pattern(const char *fen_pattern, bool add_reverse,
         in_closure = false;
       } else {
         ok = false;
-        fprintf(GlobalState.logfile, "Missing %c to match %c: %s\n", CCL_START,
+        fprintf(globals->logfile, "Missing %c to match %c: %s\n", CCL_START,
                 CCL_END, fen_pattern);
       }
     } else if (*p == NCCL) {
       if (!in_closure) {
         ok = false;
-        fprintf(GlobalState.logfile, "%c not allowed outside %c...%c: %s\n",
-                NCCL, CCL_START, CCL_END, fen_pattern);
+        fprintf(globals->logfile, "%c not allowed outside %c...%c: %s\n", NCCL,
+                CCL_START, CCL_END, fen_pattern);
       }
     } else {
       rankSymbols++;
@@ -165,11 +166,11 @@ void add_fen_pattern(const char *fen_pattern, bool add_reverse,
     if (*p == MATERIAL_CONSTRAINT) {
       p++;
       /* Deal with a constraint on the material that must also match. */
-      constraint = process_material_description(p, add_reverse, true);
+      constraint = process_material_description(globals, p, add_reverse, true);
     } else {
       constraint = NULL;
     }
-    pattern_tree_insert(ranks,
+    pattern_tree_insert(globals, ranks,
                         label != NULL ? copy_string(label) : copy_string(""),
                         constraint);
 
@@ -189,14 +190,13 @@ void add_fen_pattern(const char *fen_pattern, bool add_reverse,
         char *rlabel = (char *)malloc_or_die(strlen(label) + 1 + 1);
         strcpy(rlabel, label);
         strcat(rlabel, "I");
-        add_fen_pattern(reversed, false, rlabel);
+        add_fen_pattern(globals, reversed, false, rlabel);
       } else {
-        add_fen_pattern(reversed, false, "");
+        add_fen_pattern(globals, reversed, false, "");
       }
     }
   } else {
-    fprintf(GlobalState.logfile, "FEN Pattern: %s badly formed.\n",
-            fen_pattern);
+    fprintf(globals->logfile, "FEN Pattern: %s badly formed.\n", fen_pattern);
   }
 }
 
@@ -255,7 +255,8 @@ static const char *reverse_fen_pattern(const char *pattern) {
  * Insert the ranks of a single pattern into the current pattern tree
  * to consolidate similar patterns.
  */
-static void pattern_tree_insert(char **ranks, const char *label,
+static void pattern_tree_insert(const StateInfo *globals, char **ranks,
+                                const char *label,
                                 MaterialCriteria *constraint) {
   FENPatternMatch *match = (FENPatternMatch *)malloc_or_die(sizeof(*match));
   /* Create a linked list for the ranks.
@@ -280,14 +281,15 @@ static void pattern_tree_insert(char **ranks, const char *label,
     pattern_tree = match;
   } else {
     /* Find the place to insert this list in the existing tree. */
-    insert_pattern(pattern_tree, match);
+    insert_pattern(globals, pattern_tree, match);
   }
 }
 
 /* Starting at node, try to insert next into the tree.
  * Return true on success, false on failure.
  */
-static void insert_pattern(FENPatternMatch *node, FENPatternMatch *next) {
+static void insert_pattern(const StateInfo *globals, FENPatternMatch *node,
+                           FENPatternMatch *next) {
   bool inserted = false;
   while (!inserted && strcmp(node->rank, next->rank) == 0) {
     if (node->next_rank != NULL) {
@@ -296,15 +298,14 @@ static void insert_pattern(FENPatternMatch *node, FENPatternMatch *next) {
       next = next->next_rank;
     } else {
       /* Patterns are duplicates. */
-      fprintf(GlobalState.logfile,
-              "Warning: duplicate FEN patterns detected.\n");
+      fprintf(globals->logfile, "Warning: duplicate FEN patterns detected.\n");
       inserted = true;
     }
   }
   if (!inserted) {
     /* Insert as an alternative. */
     if (node->alternative_rank != NULL) {
-      insert_pattern(node->alternative_rank, next);
+      insert_pattern(globals, node->alternative_rank, next);
     } else {
       node->alternative_rank = next;
     }
@@ -317,7 +318,7 @@ static void insert_pattern(FENPatternMatch *node, FENPatternMatch *next) {
  * match to be added to the game's tags. An empty string is
  * used for no label.
  */
-const char *pattern_match_board(const Board *board) {
+const char *pattern_match_board(const StateInfo *globals, const Board *board) {
   const char *match_label = NULL;
   if (pattern_tree != NULL) {
     /* Don't convert any ranks of the board until they
@@ -327,7 +328,7 @@ const char *pattern_match_board(const Board *board) {
     for (int i = 0; i < BOARDSIZE; i++) {
       ranks[i][0] = '\0';
     }
-    match_label = pattern_match_rank(board, pattern_tree, 0, ranks);
+    match_label = pattern_match_rank(globals, board, pattern_tree, 0, ranks);
   }
   return match_label;
 }
@@ -337,8 +338,9 @@ const char *pattern_match_board(const Board *board) {
  * Return NULL if no match is found.
  */
 static const char *
-pattern_match_rank(const Board *board, FENPatternMatch *pattern,
-                   int patternIndex, char ranks[BOARDSIZE + 1][BOARDSIZE + 1]) {
+pattern_match_rank(const StateInfo *globals, const Board *board,
+                   FENPatternMatch *pattern, int patternIndex,
+                   char ranks[BOARDSIZE + 1][BOARDSIZE + 1]) {
   const char *match_label = NULL;
   if (ranks[patternIndex][0] == '\0') {
     /* Convert the required rank.
@@ -351,7 +353,7 @@ pattern_match_rank(const Board *board, FENPatternMatch *pattern,
       if (patternIndex == BOARDSIZE - 1) {
         /* The board matches the pattern. */
         if (pattern->constraint != NULL) {
-          if (constraint_material_match(pattern->constraint, board)) {
+          if (constraint_material_match(globals, pattern->constraint, board)) {
             match_label = pattern->optional_label;
           }
         } else {
@@ -359,7 +361,7 @@ pattern_match_rank(const Board *board, FENPatternMatch *pattern,
         }
       } else {
         /* Try next rank.*/
-        match_label = pattern_match_rank(board, pattern->next_rank,
+        match_label = pattern_match_rank(globals, board, pattern->next_rank,
                                          patternIndex + 1, ranks);
       }
     }

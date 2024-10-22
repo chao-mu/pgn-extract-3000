@@ -26,18 +26,23 @@
 
 #include <stdbool.h>
 
-void add_positional_variations_from_file(FILE *fpin);
-void add_positional_variation_from_line(char *line);
-void add_textual_variations_from_file(FILE *fpin);
-void add_textual_variation_from_line(char *line);
-void add_fen_positional_match(const char *fen_string);
-void add_fen_pattern_match(const char *fen_pattern, bool add_reverse,
-                           const char *label);
-bool check_for_only_checkmate(const Game *game_details);
-bool check_for_only_insufficient_material(const Board *board);
-bool check_for_only_stalemate(const Board *board, const Move *moves);
-bool check_move_bounds(unsigned plycount);
-bool check_textual_variations(const Game *game_details);
-bool is_stalemate(const Board *board, const Move *moves);
+void add_positional_variations_from_file(StateInfo *globals, FILE *fpin);
+void add_positional_variation_from_line(StateInfo *globals, char *line);
+void add_textual_variations_from_file(const StateInfo *globals, FILE *fpin);
+void add_textual_variation_from_line(const StateInfo *globals, char *line);
+void add_fen_positional_match(StateInfo *globals, const char *fen_string);
+void add_fen_pattern_match(StateInfo *globals, const char *fen_pattern,
+                           bool add_reverse, const char *label);
+bool check_for_only_checkmate(const StateInfo *globals,
+                              const Game *game_details);
+bool check_for_only_insufficient_material(const StateInfo *globals,
+                                          const Board *board);
+bool check_for_only_stalemate(const StateInfo *globals, const Board *board,
+                              const Move *moves);
+bool check_move_bounds(const StateInfo *globals, unsigned plycount);
+bool check_textual_variations(const StateInfo *globals,
+                              const Game *game_details);
+bool is_stalemate(const StateInfo *globals, const Board *board,
+                  const Move *moves);
 
 #endif // MOVES_H

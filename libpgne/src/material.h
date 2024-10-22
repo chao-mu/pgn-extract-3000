@@ -56,12 +56,15 @@ typedef struct MaterialCriterias {
  */
 #define MATERIAL_CONSTRAINT ':'
 
-bool build_endings(const char *infile, bool both_colours);
-bool check_for_material_match(Game *game);
-bool constraint_material_match(MaterialCriteria *details_to_find,
+bool build_endings(const StateInfo *globals, const char *infile,
+                   bool both_colours);
+bool check_for_material_match(const StateInfo *globals, Game *game);
+bool constraint_material_match(const StateInfo *globals,
+                               MaterialCriteria *details_to_find,
                                const Board *board);
 bool insufficient_material(const Board *board);
-MaterialCriteria *process_material_description(const char *line,
+MaterialCriteria *process_material_description(const StateInfo *globals,
+                                               const char *line,
                                                bool both_colours,
                                                bool pattern_constraint);
 

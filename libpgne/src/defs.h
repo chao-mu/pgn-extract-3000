@@ -30,6 +30,18 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* The maximum length of an output line.  This is conservatively
+ * slightly smaller than the PGN export standard of 80.
+ */
+#define MAX_LINE_LENGTH 75
+
+/* Define a file name relative to the current directory representing
+ * a file of ECO classificiations.
+ */
+#ifndef DEFAULT_ECO_FILE
+#define DEFAULT_ECO_FILE "eco.pgn"
+#endif
+
 typedef enum { BLACK, WHITE } Colour;
 typedef enum {
   OFF,
@@ -129,7 +141,7 @@ typedef struct {
    */
   HashCode weak_hash_value;
   /* Provision for storing a Zobrist hash value. However,
-   * this is only set if GlobalState.add_hashcode_comments.
+   * this is only set if globals->add_hashcode_comments.
    * At some point, it should supersede the weak_hash_value.
    */
   uint64_t zobrist;

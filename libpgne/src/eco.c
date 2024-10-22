@@ -21,13 +21,10 @@
 
 #include "eco.h"
 
-#include "apply.h"
 #include "defs.h"
-#include "lex.h"
-#include "map.h"
+#include "grammar.h"
 #include "mymalloc.h"
 #include "taglist.h"
-#include "tokens.h"
 #include "typedef.h"
 
 #include <ctype.h>
@@ -137,7 +134,8 @@ void initEcoTable(void) {
 
 /* Enter the ECO details of game into EcoTable.
  */
-void save_eco_details(const Game *game_details, const Board *final_position,
+void save_eco_details(const StateInfo *globals, const Game *game_details,
+                      const Board *final_position,
                       unsigned number_of_half_moves) {
   unsigned ix = game_details->final_hash_value % ECO_TABLE_SIZE;
   EcoLog *entry = NULL;
@@ -165,9 +163,9 @@ void save_eco_details(const Game *game_details, const Board *final_position,
       if (variation == NULL) {
         variation = "";
       }
-      fprintf(GlobalState.logfile, "ECO hash collision of ");
-      fprintf(GlobalState.logfile, "%s %s %s", tag, opening, variation);
-      fprintf(GlobalState.logfile, " against ");
+      fprintf(globals->logfile, "ECO hash collision of ");
+      fprintf(globals->logfile, "%s %s %s", tag, opening, variation);
+      fprintf(globals->logfile, " against ");
       tag = game_details->tags[ECO_TAG];
       opening = game_details->tags[OPENING_TAG];
       variation = game_details->tags[VARIATION_TAG];
@@ -180,8 +178,8 @@ void save_eco_details(const Game *game_details, const Board *final_position,
       if (variation == NULL) {
         variation = "";
       }
-      fprintf(GlobalState.logfile, "%s %s %s\n", tag, opening, variation);
-      fprintf(GlobalState.logfile, "Possible duplicate move sequences.\n");
+      fprintf(globals->logfile, "%s %s %s\n", tag, opening, variation);
+      fprintf(globals->logfile, "Possible duplicate move sequences.\n");
 
       can_save = false;
     }
@@ -281,7 +279,7 @@ EcoLog *eco_matches(const Board *board, HashCode cumulative_hash_value,
  * current game, open the correctly named ECO file.
  */
 FILE *
-open_eco_output_file(EcoDivision ECO_level,
+open_eco_output_file(const StateInfo *globals, EcoDivision ECO_level,
                      const char *eco) { /* Allow space for the maximum number of
                                          * ECO digits plus a .pgn suffix.
                                          */
@@ -293,11 +291,11 @@ open_eco_output_file(EcoDivision ECO_level,
   if ((eco == NULL) || !isalpha((int)*eco)) {
     strcpy(filename, "noeco.pgn");
   } else if (ECO_level == DONT_DIVIDE) {
-    fprintf(GlobalState.logfile,
+    fprintf(globals->logfile,
             "Internal error: ECO division in open_eco_output_file\n");
     strcpy(filename, "noeco");
   } else if (ECO_level == DONT_DIVIDE) {
-    fprintf(GlobalState.logfile,
+    fprintf(globals->logfile,
             "Internal error: ECO division in open_eco_output_file\n");
     strcpy(filename, "noeco");
   } else {
@@ -305,5 +303,5 @@ open_eco_output_file(EcoDivision ECO_level,
     filename[ECO_level] = '\0';
     strcat(filename, suffix);
   }
-  return must_open_file(filename, "a");
+  return must_open_file(globals, filename, "a");
 }

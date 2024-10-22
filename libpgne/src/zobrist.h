@@ -25,6 +25,7 @@
 #include "typedef.h"
 
 uint64_t generate_zobrist_hash_from_board(const Board *board);
-uint64_t generate_zobrist_hash_from_fen(const char *fen);
+uint64_t generate_zobrist_hash_from_fen(const StateInfo *globals,
+                                        const char *fen);
 uint64_t piece_hash(char piece, int rank, int col);
 #endif

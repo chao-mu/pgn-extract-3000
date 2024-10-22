@@ -45,6 +45,18 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+/* The maximum length of an output line.  This is conservatively
+ * slightly smaller than the PGN export standard of 80.
+ */
+#define MAX_LINE_LENGTH 75
+
+/* Define a file name relative to the current directory representing
+ * a file of ECO classificiations.
+ */
+#ifndef DEFAULT_ECO_FILE
+#define DEFAULT_ECO_FILE "eco.pgn"
+#endif
+
 typedef enum {
   SOURCE,
   SAN,
@@ -137,7 +149,7 @@ typedef struct move {
    */
   char *fen_suffix;
   /* zobrist hash code of the position after this move has been played.
-   * Only set if GlobalState.add_hashcode_comments.
+   * Only set if globals->add_hashcode_comments.
    */
   uint64_t zobrist;
   /* Evaluation of the position after this move has been played.
@@ -458,11 +470,5 @@ typedef struct {
   /* Which game number to skip next (skip_game_numbers != NULL) */
   game_number *next_game_number_to_skip;
 } StateInfo;
-
-/* Provide access to the global state that has been set
- * through command line arguments.
- */
-extern StateInfo GlobalState;
-FILE *must_open_file(const char *filename, const char *mode);
 
 #endif // TYPEDEF_H

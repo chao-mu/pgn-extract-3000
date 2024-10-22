@@ -26,7 +26,6 @@
 #include "eco.h"
 #include "hashing.h"
 #include "lex.h"
-#include "map.h"
 #include "material.h"
 #include "moves.h"
 #include "mymalloc.h"
@@ -35,7 +34,6 @@
 #include "tokens.h"
 #include "typedef.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,36 +60,37 @@ static struct {
   CommentList *prefix_comment;
 } GameHeader;
 
-static void parse_opt_game_list(SourceFileType file_type);
-static bool parse_game(Move **returned_move_list, unsigned long *start_line,
-                       unsigned long *end_line);
-bool parse_opt_tag_list(void);
-bool parse_tag(void);
-static Move *parse_move_list(void);
-static Move *parse_move_and_variants(void);
-static Move *parse_move(void);
-static Move *parse_move_unit(void);
-static CommentList *parse_opt_comment_list(void);
-bool parse_opt_move_number(void);
-static void parse_opt_NAG_list(Move *move_details);
-static Variation *parse_opt_variant_list(void);
-static Variation *parse_variant(void);
-static char *parse_result(void);
+static void parse_opt_game_list(StateInfo *globals, SourceFileType file_type);
+static bool parse_game(StateInfo *globals, Move **returned_move_list,
+                       unsigned long *start_line, unsigned long *end_line);
+bool parse_opt_tag_list(StateInfo *globals);
+bool parse_tag(StateInfo *globals);
+static Move *parse_move_list(StateInfo *globals);
+static Move *parse_move_and_variants(StateInfo *globals);
+static Move *parse_move(StateInfo *globals);
+static Move *parse_move_unit(StateInfo *globals);
+static CommentList *parse_opt_comment_list(StateInfo *globals);
+bool parse_opt_move_number(StateInfo *globals);
+static void parse_opt_NAG_list(StateInfo *globals, Move *move_details);
+static Variation *parse_opt_variant_list(StateInfo *globals);
+static Variation *parse_variant(StateInfo *globals);
+static char *parse_result(StateInfo *globals);
 
 static void setup_for_new_game(void);
 static CommentList *append_comment(CommentList *item, CommentList *list);
 static void check_result(char **Tags, const char *terminating_result);
-static bool check_for_comments(const Game *game);
+static bool check_for_comments(const StateInfo *globals, const Game *game);
 static bool chess960_setup(Board *board);
-static void deal_with_ECO_line(Move *move_list);
-static void deal_with_game(Move *move_list, unsigned long start_line,
-                           unsigned long end_line);
-static bool finished_processing(void);
+static void deal_with_ECO_line(const StateInfo *globals, Move *move_list);
+static void deal_with_game(StateInfo *globals, Move *move_list,
+                           unsigned long start_line, unsigned long end_line);
+static bool finished_processing(const StateInfo *globals);
 static void free_tags(void);
 static CommentList *merge_comment_lists(CommentList *prefix,
                                         CommentList *suffix);
-static void output_game(Game *game, FILE *outputfile);
-static void split_variants(Game *game, FILE *outputfile, unsigned depth);
+static void output_game(const StateInfo *globals, Game *game, FILE *outputfile);
+static void split_variants(const StateInfo *globals, Game *game,
+                           FILE *outputfile, unsigned depth);
 
 /* Initialise the game header structure to contain
  * space for the default number of tags.
@@ -109,13 +108,14 @@ void init_game_header(void) {
   GameHeader.prefix_comment = (CommentList *)NULL;
 }
 
-void increase_game_header_tags_length(unsigned new_length) {
+void increase_game_header_tags_length(const StateInfo *globals,
+                                      unsigned new_length) {
   unsigned i;
 
   if (new_length <= GameHeader.header_tags_length) {
-    fprintf(GlobalState.logfile, "Internal error: inappropriate length %d ",
+    fprintf(globals->logfile, "Internal error: inappropriate length %d ",
             new_length);
-    fprintf(GlobalState.logfile, " passed to increase_game_header_tags().\n");
+    fprintf(globals->logfile, " passed to increase_game_header_tags().\n");
     exit(1);
   }
   GameHeader.Tags = (char **)realloc_or_die(
@@ -127,12 +127,13 @@ void increase_game_header_tags_length(unsigned new_length) {
 }
 
 /* Try to open the given file. Error and exit on failure. */
-FILE *must_open_file(const char *filename, const char *mode) {
+FILE *must_open_file(const StateInfo *globals, const char *filename,
+                     const char *mode) {
   FILE *fp;
 
   fp = fopen(filename, mode);
   if (fp == NULL) {
-    fprintf(GlobalState.logfile, "Unable to open the file: \"%s\"\n", filename);
+    fprintf(globals->logfile, "Unable to open the file: \"%s\"\n", filename);
     exit(1);
   }
   return fp;
@@ -218,8 +219,8 @@ static bool comments_in_move_list(const Move *move_list) {
 }
 
 /* Check whether only games with comments are to be retained. */
-static bool check_for_comments(const Game *game) {
-  if (GlobalState.keep_only_commented_games) {
+static bool check_for_comments(const StateInfo *globals, const Game *game) {
+  if (globals->keep_only_commented_games) {
     if (game->prefix_comment != NULL) {
       return true;
     } else {
@@ -238,7 +239,8 @@ static bool check_for_comments(const Game *game) {
 /* A length for filenames. */
 #define FILENAME_LENGTH (250)
 
-static FILE *select_output_file(StateInfo *GameState, const char *eco) {
+static FILE *select_output_file(const StateInfo *globals, StateInfo *GameState,
+                                const char *eco) {
   if (GameState->games_per_file > 0) {
     if (GameState->games_per_file == 1 ||
         (GameState->num_games_matched % GameState->games_per_file) == 1) {
@@ -246,18 +248,18 @@ static FILE *select_output_file(StateInfo *GameState, const char *eco) {
       char filename[FILENAME_LENGTH];
 
       if (GameState->outputfile != NULL) {
-        if (GlobalState.json_format && GameState->num_games_matched != 1) {
+        if (globals->json_format && GameState->num_games_matched != 1) {
           /* Terminate the output of the previous file. */
-          fputs("\n]\n", GlobalState.outputfile);
+          fputs("\n]\n", globals->outputfile);
         }
         (void)fclose(GameState->outputfile);
       }
       sprintf(filename, "%u%s", GameState->next_file_number,
               output_file_suffix(GameState->output_format));
-      GameState->outputfile = must_open_file(filename, "w");
+      GameState->outputfile = must_open_file(globals, filename, "w");
       GameState->next_file_number++;
-      if (GlobalState.json_format) {
-        fputs("[\n", GlobalState.outputfile);
+      if (globals->json_format) {
+        fputs("[\n", globals->outputfile);
       }
     }
   } else {
@@ -268,10 +270,11 @@ static FILE *select_output_file(StateInfo *GameState, const char *eco) {
          * Repeated opening and closing may prove inefficient.
          */
         (void)fclose(GameState->outputfile);
-        GameState->outputfile = open_eco_output_file(GameState->ECO_level, eco);
+        GameState->outputfile =
+            open_eco_output_file(globals, GameState->ECO_level, eco);
       }
-    } else if (GlobalState.json_format && GameState->num_games_matched == 1) {
-      fputs("[\n", GlobalState.outputfile);
+    } else if (globals->json_format && GameState->num_games_matched == 1) {
+      fputs("[\n", globals->outputfile);
     } else {
     }
   }
@@ -282,12 +285,12 @@ static FILE *select_output_file(StateInfo *GameState, const char *eco) {
  * Conditions for finishing processing, other than all the input
  * having been processed.
  */
-static bool finished_processing(void) {
-  return (GlobalState.matching_game_numbers != NULL &&
-          GlobalState.next_game_number_to_output == NULL) ||
-         (GlobalState.maximum_matches > 0 &&
-          GlobalState.num_games_matched == GlobalState.maximum_matches) ||
-         GlobalState.num_games_processed >= GlobalState.game_limit;
+static bool finished_processing(const StateInfo *globals) {
+  return (globals->matching_game_numbers != NULL &&
+          globals->next_game_number_to_output == NULL) ||
+         (globals->maximum_matches > 0 &&
+          globals->num_games_matched == globals->maximum_matches) ||
+         globals->num_games_processed >= globals->game_limit;
 }
 
 /*
@@ -297,22 +300,22 @@ static bool in_game_number_range(unsigned long number, game_number *range) {
   return range != NULL && range->min <= number && number <= range->max;
 }
 
-static void parse_opt_game_list(SourceFileType file_type) {
+static void parse_opt_game_list(StateInfo *globals, SourceFileType file_type) {
   Move *move_list = NULL;
   unsigned long start_line, end_line;
 
-  while (parse_game(&move_list, &start_line, &end_line) &&
-         !finished_processing()) {
+  while (parse_game(globals, &move_list, &start_line, &end_line) &&
+         !finished_processing(globals)) {
     if (file_type == NORMALFILE) {
-      deal_with_game(move_list, start_line, end_line);
+      deal_with_game(globals, move_list, start_line, end_line);
     } else if (file_type == CHECKFILE) {
-      deal_with_game(move_list, start_line, end_line);
+      deal_with_game(globals, move_list, start_line, end_line);
     } else if (file_type == ECOFILE) {
       if (move_list != NULL) {
-        deal_with_ECO_line(move_list);
+        deal_with_ECO_line(globals, move_list);
       } else {
-        fprintf(GlobalState.logfile, "ECO line with zero moves.\n");
-        report_details(GlobalState.logfile);
+        fprintf(globals->logfile, "ECO line with zero moves.\n");
+        report_details(globals->logfile);
       }
     } else {
       /* Unknown type. */
@@ -331,7 +334,8 @@ static void parse_opt_game_list(SourceFileType file_type) {
  * in returned_move_list.
  */
 static bool
-parse_game(Move **returned_move_list, unsigned long *start_line,
+parse_game(StateInfo *globals, Move **returned_move_list,
+           unsigned long *start_line,
            unsigned long *end_line) { /* bool something_found = false; */
   CommentList *prefix_comment;
   Move *move_list = NULL;
@@ -344,8 +348,8 @@ parse_game(Move **returned_move_list, unsigned long *start_line,
   /* Assume that we won't return anything. */
   *returned_move_list = NULL;
   /* Skip over any junk between games. */
-  current_symbol = skip_to_next_game(current_symbol);
-  prefix_comment = parse_opt_comment_list();
+  current_symbol = skip_to_next_game(globals, current_symbol);
+  prefix_comment = parse_opt_comment_list(globals);
   if (prefix_comment != NULL) {
     /* Free this here, as it is hard to
      * know whether it belongs to the game or the file.
@@ -356,7 +360,7 @@ parse_game(Move **returned_move_list, unsigned long *start_line,
     prefix_comment = NULL;
   }
   *start_line = get_line_number();
-  if (parse_opt_tag_list()) {
+  if (parse_opt_tag_list(globals)) {
     /* something_found = true; */
   }
 
@@ -365,18 +369,18 @@ parse_game(Move **returned_move_list, unsigned long *start_line,
    * Silently delete it/them.
    */
   while (current_symbol == NAG) {
-    current_symbol = next_token();
+    current_symbol = next_token(globals);
   }
 
   /* @@@ Beware of comments and/or tags without moves. */
-  move_list = parse_move_list();
+  move_list = parse_move_list(globals);
 
   /* @@@ Look for a comment with no move text before the result. */
-  hanging_comment = parse_opt_comment_list();
+  hanging_comment = parse_opt_comment_list(globals);
   /* Append this to the final move, if there is one. */
 
   /* Look for a result, even if there were no moves. */
-  result = parse_result();
+  result = parse_result(globals);
   *end_line = get_line_number();
   if (move_list != NULL) {
     /* Find the last move. */
@@ -395,8 +399,8 @@ parse_game(Move **returned_move_list, unsigned long *start_line,
       check_result(GameHeader.Tags, result);
       *returned_move_list = move_list;
     } else {
-      fprintf(GlobalState.logfile, "Missing result.\n");
-      report_details(GlobalState.logfile);
+      fprintf(globals->logfile, "Missing result.\n");
+      report_details(globals->logfile);
     }
     /* something_found = true; */
   } else {
@@ -419,14 +423,14 @@ parse_game(Move **returned_move_list, unsigned long *start_line,
   return current_symbol != EOF_TOKEN;
 }
 
-bool parse_opt_tag_list(void) {
+bool parse_opt_tag_list(StateInfo *globals) {
   bool something_found = false;
   CommentList *prefix_comment;
 
-  while (parse_tag()) {
+  while (parse_tag(globals)) {
     something_found = true;
   }
-  prefix_comment = parse_opt_comment_list();
+  prefix_comment = parse_opt_comment_list(globals);
   if (prefix_comment != NULL) {
     GameHeader.prefix_comment = prefix_comment;
     something_found = true;
@@ -487,43 +491,43 @@ static bool chess960_setup(Board *board) {
   }
 }
 
-bool parse_tag(void) {
+bool parse_tag(StateInfo *globals) {
   bool TagFound = true;
 
   if (current_symbol == TAG) {
     TagName tag_index = yylval.tag_index;
 
-    current_symbol = next_token();
+    current_symbol = next_token(globals);
     if (current_symbol == STRING) {
       char *tag_string = yylval.token_string;
 
       if (tag_index < GameHeader.header_tags_length) {
         GameHeader.Tags[tag_index] = tag_string;
       } else {
-        print_error_context(GlobalState.logfile);
-        fprintf(GlobalState.logfile,
+        print_error_context(globals, globals->logfile);
+        fprintf(globals->logfile,
                 "Internal error: Illegal tag index %d for %s\n", tag_index,
                 tag_string);
         exit(1);
       }
-      current_symbol = next_token();
+      current_symbol = next_token(globals);
     } else {
-      print_error_context(GlobalState.logfile);
-      fprintf(GlobalState.logfile, "Missing tag string.\n");
+      print_error_context(globals, globals->logfile);
+      fprintf(globals->logfile, "Missing tag string.\n");
     }
     if (current_symbol == TAG_END) {
-      current_symbol = next_token();
+      current_symbol = next_token(globals);
     } else {
-      print_error_context(GlobalState.logfile);
-      fprintf(GlobalState.logfile, "Missing ]\n");
+      print_error_context(globals, globals->logfile);
+      fprintf(globals->logfile, "Missing ]\n");
     }
   } else if (current_symbol == STRING) {
-    print_error_context(GlobalState.logfile);
-    fprintf(GlobalState.logfile, "Missing tag for %s.\n", yylval.token_string);
+    print_error_context(globals, globals->logfile);
+    fprintf(globals->logfile, "Missing tag for %s.\n", yylval.token_string);
     (void)free((void *)yylval.token_string);
-    current_symbol = next_token();
+    current_symbol = next_token(globals);
     if (current_symbol == TAG_END) {
-      current_symbol = next_token();
+      current_symbol = next_token(globals);
     } else {
       /* No point reporting the error. */
     }
@@ -533,15 +537,15 @@ bool parse_tag(void) {
   return TagFound;
 }
 
-static Move *parse_move_list(void) {
+static Move *parse_move_list(StateInfo *globals) {
   Move *head = NULL, *tail = NULL;
 
-  head = parse_move_and_variants();
+  head = parse_move_and_variants(globals);
   if (head != NULL) {
     Move *next_move;
 
     tail = head;
-    while ((next_move = parse_move_and_variants()) != NULL) {
+    while ((next_move = parse_move_and_variants(globals)) != NULL) {
       tail->next = next_move;
       tail = next_move;
     }
@@ -549,15 +553,15 @@ static Move *parse_move_list(void) {
   return head;
 }
 
-static Move *parse_move_and_variants(void) {
+static Move *parse_move_and_variants(StateInfo *globals) {
   Move *move_details;
 
-  move_details = parse_move();
+  move_details = parse_move(globals);
   if (move_details != NULL) {
     CommentList *comment;
 
-    move_details->Variants = parse_opt_variant_list();
-    comment = parse_opt_comment_list();
+    move_details->Variants = parse_opt_variant_list(globals);
+    comment = parse_opt_comment_list(globals);
     if (comment != NULL) {
       move_details->comment_list =
           append_comment(comment, move_details->comment_list);
@@ -566,15 +570,15 @@ static Move *parse_move_and_variants(void) {
   return move_details;
 }
 
-static Move *parse_move(void) {
+static Move *parse_move(StateInfo *globals) {
   Move *move_details = NULL;
 
-  if (parse_opt_move_number()) {
+  if (parse_opt_move_number(globals)) {
   }
   /* @@@ Watch out for finding just the number. */
-  move_details = parse_move_unit();
+  move_details = parse_move_unit(globals);
   if (move_details != NULL) {
-    parse_opt_NAG_list(move_details);
+    parse_opt_NAG_list(globals, move_details);
     /* Any trailing comments will have been picked up
      * and attached to the NAGs.
      */
@@ -582,35 +586,35 @@ static Move *parse_move(void) {
   return move_details;
 }
 
-static Move *parse_move_unit(void) {
+static Move *parse_move_unit(StateInfo *globals) {
   Move *move_details = NULL;
 
   if (current_symbol == MOVE) {
     move_details = yylval.move_details;
 
     if (move_details->class == NULL_MOVE && RAV_level == 0) {
-      if (!GlobalState.allow_null_moves) {
-        print_error_context(GlobalState.logfile);
-        fprintf(GlobalState.logfile,
+      if (!globals->allow_null_moves) {
+        print_error_context(globals, globals->logfile);
+        fprintf(globals->logfile,
                 "Null moves (--) only allowed in variations.\n");
       }
     }
 
-    current_symbol = next_token();
+    current_symbol = next_token(globals);
     if (current_symbol == CHECK_SYMBOL) {
       strcat((char *)move_details->move, "+");
-      current_symbol = next_token();
+      current_symbol = next_token(globals);
       /* Sometimes + is followed by #, so cover this case. */
       if (current_symbol == CHECK_SYMBOL) {
-        current_symbol = next_token();
+        current_symbol = next_token(globals);
       }
     }
-    move_details->comment_list = parse_opt_comment_list();
+    move_details->comment_list = parse_opt_comment_list(globals);
   }
   return move_details;
 }
 
-static CommentList *parse_opt_comment_list(void) {
+static CommentList *parse_opt_comment_list(StateInfo *globals) {
   CommentList *head = NULL, *tail = NULL;
 
   while (current_symbol == COMMENT) {
@@ -620,16 +624,16 @@ static CommentList *parse_opt_comment_list(void) {
       tail->next = yylval.comment;
       tail = tail->next;
     }
-    current_symbol = next_token();
+    current_symbol = next_token(globals);
   }
   return head;
 }
 
-bool parse_opt_move_number(void) {
+bool parse_opt_move_number(StateInfo *globals) {
   bool something_found = false;
 
   if (current_symbol == MOVE_NUMBER) {
-    current_symbol = next_token();
+    current_symbol = next_token(globals);
     something_found = true;
   }
   return something_found;
@@ -639,7 +643,7 @@ bool parse_opt_move_number(void) {
  * Parse 0 or more NAGs, optionally followed by 0 or more comments.
  * @param move_details
  */
-static void parse_opt_NAG_list(Move *move_details) {
+static void parse_opt_NAG_list(StateInfo *globals, Move *move_details) {
   while (current_symbol == NAG) {
     Nag *details = (Nag *)malloc_or_die(sizeof(*details));
     details->text = NULL;
@@ -647,9 +651,9 @@ static void parse_opt_NAG_list(Move *move_details) {
     details->next = NULL;
     do {
       details->text = save_string_list_item(details->text, yylval.token_string);
-      current_symbol = next_token();
+      current_symbol = next_token(globals);
     } while (current_symbol == NAG);
-    details->comments = parse_opt_comment_list();
+    details->comments = parse_opt_comment_list(globals);
     if (move_details->NAGs == NULL) {
       move_details->NAGs = details;
     } else {
@@ -662,10 +666,10 @@ static void parse_opt_NAG_list(Move *move_details) {
   }
 }
 
-static Variation *parse_opt_variant_list(void) {
+static Variation *parse_opt_variant_list(StateInfo *globals) {
   Variation *head = NULL, *tail = NULL, *variation;
 
-  while ((variation = parse_variant()) != NULL) {
+  while ((variation = parse_variant(globals)) != NULL) {
     if (head == NULL) {
       head = tail = variation;
     } else {
@@ -676,7 +680,7 @@ static Variation *parse_opt_variant_list(void) {
   return head;
 }
 
-static Variation *parse_variant(void) {
+static Variation *parse_variant(StateInfo *globals) {
   Variation *variation = NULL;
 
   if (current_symbol == RAV_START) {
@@ -688,13 +692,13 @@ static Variation *parse_variant(void) {
     RAV_level++;
     variation = (Variation *)malloc_or_die(sizeof(Variation));
 
-    current_symbol = next_token();
-    prefix_comment = parse_opt_comment_list();
-    moves = parse_move_list();
+    current_symbol = next_token(globals);
+    prefix_comment = parse_opt_comment_list(globals);
+    moves = parse_move_list(globals);
     if (moves == NULL) {
-      print_error_context(GlobalState.logfile);
-      fprintf(GlobalState.logfile, "Missing move list in variation.\n");
-    } else if (GlobalState.lichess_comment_fix && prefix_comment != NULL) {
+      print_error_context(globals, globals->logfile);
+      fprintf(globals->logfile, "Missing move list in variation.\n");
+    } else if (globals->lichess_comment_fix && prefix_comment != NULL) {
       /* lichess study deletes the prefix comment, so
        * move it after the first move of the variation.
        */
@@ -702,7 +706,7 @@ static Variation *parse_variant(void) {
           merge_comment_lists(prefix_comment, moves->comment_list);
       prefix_comment = NULL;
     }
-    result = parse_result();
+    result = parse_result(globals);
     if ((result != NULL) && (moves != NULL)) {
       /* Find the last move, to which to append the terminating
        * result.
@@ -717,7 +721,7 @@ static Variation *parse_variant(void) {
       /* Accept a comment after the result, but it will
        * be printed out preceding the result.
        */
-      trailing_comment = parse_opt_comment_list();
+      trailing_comment = parse_opt_comment_list(globals);
       if (trailing_comment != NULL) {
         last_move->comment_list =
             append_comment(trailing_comment, last_move->comment_list);
@@ -727,12 +731,12 @@ static Variation *parse_variant(void) {
     }
     if (current_symbol == RAV_END) {
       RAV_level--;
-      current_symbol = next_token();
+      current_symbol = next_token(globals);
     } else {
-      fprintf(GlobalState.logfile, "Missing ')' to close variation.\n");
-      print_error_context(GlobalState.logfile);
+      fprintf(globals->logfile, "Missing ')' to close variation.\n");
+      print_error_context(globals, globals->logfile);
     }
-    suffix_comment = parse_opt_comment_list();
+    suffix_comment = parse_opt_comment_list(globals);
     variation->prefix_comment = prefix_comment;
     variation->suffix_comment = suffix_comment;
     variation->moves = moves;
@@ -741,7 +745,7 @@ static Variation *parse_variant(void) {
   return variation;
 }
 
-static char *parse_result(void) {
+static char *parse_result(StateInfo *globals) {
   char *result = NULL;
 
   if (current_symbol == TERMINATING_RESULT) {
@@ -752,7 +756,7 @@ static char *parse_result(void) {
        */
       current_symbol = NO_TOKEN;
     } else {
-      current_symbol = next_token();
+      current_symbol = next_token(globals);
     }
   }
   return result;
@@ -933,7 +937,7 @@ static CommentList *merge_comment_lists(CommentList *prefix,
 }
 
 /* Check for consistency of any FEN-related tags. */
-static bool consistent_FEN_tags(Game *current_game) {
+static bool consistent_FEN_tags(const StateInfo *globals, Game *current_game) {
   bool consistent = true;
 
   if ((current_game->tags[SETUP_TAG] != NULL) &&
@@ -941,26 +945,27 @@ static bool consistent_FEN_tags(Game *current_game) {
     /* There must be a FEN_TAG to go with it. */
     if (current_game->tags[FEN_TAG] == NULL) {
       consistent = false;
-      report_details(GlobalState.logfile);
-      fprintf(GlobalState.logfile, "Missing %s Tag to accompany %s Tag.\n",
-              tag_header_string(FEN_TAG), tag_header_string(SETUP_TAG));
-      print_error_context(GlobalState.logfile);
+      report_details(globals->logfile);
+      fprintf(globals->logfile, "Missing %s Tag to accompany %s Tag.\n",
+              tag_header_string(globals, FEN_TAG),
+              tag_header_string(globals, SETUP_TAG));
+      print_error_context(globals, globals->logfile);
     }
   }
   if (current_game->tags[FEN_TAG] != NULL) {
-    Board *board = new_fen_board(current_game->tags[FEN_TAG]);
+    Board *board = new_fen_board(globals, current_game->tags[FEN_TAG]);
     if (board != NULL) {
       /* There must be a SETUP_TAG to go with it. */
       if (current_game->tags[SETUP_TAG] == NULL) {
         // This is such a common problem that it makes
         // more sense just to silently correct it.
 #if 0
-                report_details(GlobalState.logfile);
-                fprintf(GlobalState.logfile,
+                report_details(globals->logfile);
+                fprintf(globals->logfile,
                         "Missing %s Tag to accompany %s Tag.\n",
                         tag_header_string(SETUP_TAG),
                         tag_header_string(FEN_TAG));
-                print_error_context(GlobalState.logfile);
+                print_error_context(globals,globals->logfile);
 #endif
         /* Fix the inconsistency. */
         current_game->tags[SETUP_TAG] = copy_string("1");
@@ -972,19 +977,19 @@ static bool consistent_FEN_tags(Game *current_game) {
         /* Look for an initial position found in Chess 960. */
         if (chess960) {
           const char *missing_value = "chess 960";
-          report_details(GlobalState.logfile);
-          fprintf(GlobalState.logfile,
+          report_details(globals->logfile);
+          fprintf(globals->logfile,
                   "Missing %s Tag for non-standard setup; adding %s.\n",
-                  tag_header_string(VARIANT_TAG), missing_value);
+                  tag_header_string(globals, VARIANT_TAG), missing_value);
           /* Fix the inconsistency. */
           current_game->tags[VARIANT_TAG] = copy_string(missing_value);
-        } else if (GlobalState.add_fen_castling) {
+        } else if (globals->add_fen_castling) {
           /* If add_fen_castling is true and castling permissions are absent
            * then liberally assume them based on the King and Rook positions.
            */
           if (!board->WKingCastle && !board->WQueenCastle &&
               !board->BKingCastle && !board->BQueenCastle) {
-            add_fen_castling(current_game, board);
+            add_fen_castling(globals, current_game, board);
           }
         }
       } else if (chess960) {
@@ -999,8 +1004,8 @@ static bool consistent_FEN_tags(Game *current_game) {
   return consistent;
 }
 
-static void deal_with_game(Move *move_list, unsigned long start_line,
-                           unsigned long end_line) {
+static void deal_with_game(StateInfo *globals, Move *move_list,
+                           unsigned long start_line, unsigned long end_line) {
   Game current_game;
   /* We need a dummy argument for apply_move_list. */
   unsigned plycount;
@@ -1009,9 +1014,9 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
   /* Whether to output the game. */
   bool output_the_game = false;
 
-  if (GlobalState.current_file_type != CHECKFILE) {
+  if (globals->current_file_type != CHECKFILE) {
     /* Update the count of how many games handled. */
-    GlobalState.num_games_processed++;
+    globals->num_games_processed++;
   }
 
   /* Fill in the information currently known. */
@@ -1048,52 +1053,52 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
    * Therefore, check for the ECO tag only after everything else has
    * been checked.
    */
-  if (consistent_FEN_tags(&current_game) &&
-      check_tag_details_not_ECO(current_game.tags, current_game.tags_length,
-                                true) &&
-      check_setup_tag(current_game.tags) &&
-      check_duplicate_setup(&current_game) &&
-      apply_move_list(&current_game, &plycount,
-                      GlobalState.depth_of_positional_search, true) &&
-      check_move_bounds(plycount) && check_textual_variations(&current_game) &&
-      check_for_material_match(&current_game) &&
-      check_for_only_checkmate(&current_game) &&
-      check_for_only_repetition(current_game.position_counts) &&
-      check_ECO_tag(current_game.tags, true) &&
-      check_for_comments(&current_game)) {
+  if (consistent_FEN_tags(globals, &current_game) &&
+      check_tag_details_not_ECO(globals, current_game.tags,
+                                current_game.tags_length, true) &&
+      check_setup_tag(globals, current_game.tags) &&
+      check_duplicate_setup(globals, &current_game) &&
+      apply_move_list(globals, &current_game, &plycount,
+                      globals->depth_of_positional_search, true) &&
+      check_move_bounds(globals, plycount) &&
+      check_textual_variations(globals, &current_game) &&
+      check_for_material_match(globals, &current_game) &&
+      check_for_only_checkmate(globals, &current_game) &&
+      check_for_only_repetition(globals, current_game.position_counts) &&
+      check_ECO_tag(globals, current_game.tags, true) &&
+      check_for_comments(globals, &current_game)) {
     /* If there is no original filename then the game is not a
      * duplicate.
      */
-    const char *original_filename = previous_occurance(current_game, plycount);
+    const char *original_filename =
+        previous_occurance(globals, current_game, plycount);
 
-    if ((original_filename == NULL) && GlobalState.suppress_originals) {
+    if ((original_filename == NULL) && globals->suppress_originals) {
       /* Don't output first occurrences. */
-    } else if ((original_filename == NULL) ||
-               !GlobalState.suppress_duplicates) {
-      if (GlobalState.current_file_type == CHECKFILE) {
+    } else if ((original_filename == NULL) || !globals->suppress_duplicates) {
+      if (globals->current_file_type == CHECKFILE) {
         /* We are only checking, so don't count this as a matched game. */
-      } else if (GlobalState.num_games_processed >=
-                 GlobalState.first_game_number) {
+      } else if (globals->num_games_processed >= globals->first_game_number) {
         game_matches = true;
-        GlobalState.num_games_matched++;
-        if (GlobalState.matching_game_numbers != NULL &&
-            !in_game_number_range(GlobalState.num_games_matched,
-                                  GlobalState.next_game_number_to_output)) {
+        globals->num_games_matched++;
+        if (globals->matching_game_numbers != NULL &&
+            !in_game_number_range(globals->num_games_matched,
+                                  globals->next_game_number_to_output)) {
           /* This is not the right matching game to be output. */
-        } else if (GlobalState.skip_game_numbers != NULL &&
-                   in_game_number_range(GlobalState.num_games_matched,
-                                        GlobalState.next_game_number_to_skip)) {
+        } else if (globals->skip_game_numbers != NULL &&
+                   in_game_number_range(globals->num_games_matched,
+                                        globals->next_game_number_to_skip)) {
           /* Skip this matching game. */
-          if (GlobalState.num_games_matched ==
-              GlobalState.next_game_number_to_skip->max) {
-            GlobalState.next_game_number_to_skip =
-                GlobalState.next_game_number_to_skip->next;
+          if (globals->num_games_matched ==
+              globals->next_game_number_to_skip->max) {
+            globals->next_game_number_to_skip =
+                globals->next_game_number_to_skip->next;
           }
-        } else if (GlobalState.check_only) {
+        } else if (globals->check_only) {
           /* We are only checking. */
-          if (GlobalState.verbosity > 1) {
+          if (globals->verbosity > 1) {
             /* Report progress on logfile. */
-            report_details(GlobalState.logfile);
+            report_details(globals->logfile);
           }
         } else {
           output_the_game = true;
@@ -1104,73 +1109,72 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
       if (output_the_game) {
         /* This game is to be kept and output. */
         FILE *outputfile =
-            select_output_file(&GlobalState, current_game.tags[ECO_TAG]);
+            select_output_file(globals, globals, current_game.tags[ECO_TAG]);
 
         /* See if we wish to separate out duplicates. */
-        if ((original_filename != NULL) &&
-            (GlobalState.duplicate_file != NULL)) {
+        if ((original_filename != NULL) && (globals->duplicate_file != NULL)) {
           static const char *last_input_file = NULL;
 
-          outputfile = GlobalState.duplicate_file;
-          if ((last_input_file != GlobalState.current_input_file) &&
-              (GlobalState.current_input_file != NULL)) {
-            if (GlobalState.keep_comments) {
+          outputfile = globals->duplicate_file;
+          if ((last_input_file != globals->current_input_file) &&
+              (globals->current_input_file != NULL)) {
+            if (globals->keep_comments) {
               /* Record which file this and succeeding
                * duplicates come from.
                */
-              print_str(outputfile, "{ From: ");
-              print_str(outputfile, GlobalState.current_input_file);
-              print_str(outputfile, " }");
-              terminate_line(outputfile);
+              print_str(globals, outputfile, "{ From: ");
+              print_str(globals, outputfile, globals->current_input_file);
+              print_str(globals, outputfile, " }");
+              terminate_line(globals, outputfile);
             }
-            last_input_file = GlobalState.current_input_file;
+            last_input_file = globals->current_input_file;
           }
-          if (GlobalState.keep_comments) {
-            print_str(outputfile, "{ First found in: ");
-            print_str(outputfile, original_filename);
-            print_str(outputfile, " }");
-            terminate_line(outputfile);
+          if (globals->keep_comments) {
+            print_str(globals, outputfile, "{ First found in: ");
+            print_str(globals, outputfile, original_filename);
+            print_str(globals, outputfile, " }");
+            terminate_line(globals, outputfile);
           }
         }
-        if (!GlobalState.suppress_matched) {
+        if (!globals->suppress_matched) {
           /* Now output what we have. */
-          output_game(&current_game, outputfile);
-          if (GlobalState.verbosity > 1) {
+          output_game(globals, &current_game, outputfile);
+          if (globals->verbosity > 1) {
             /* Report progress on logfile. */
-            report_details(GlobalState.logfile);
+            report_details(globals->logfile);
           }
         }
       }
     }
   }
-  if (!game_matches && (GlobalState.non_matching_file != NULL) &&
-      GlobalState.current_file_type != CHECKFILE) {
+  if (!game_matches && (globals->non_matching_file != NULL) &&
+      globals->current_file_type != CHECKFILE) {
     /* The user wants to keep everything else. */
     if (!current_game.moves_checked) {
       /* Make sure that the move text is in a reasonable state.
        * Force checking of the whole game.
        */
-      (void)apply_move_list(&current_game, &plycount, 0, false);
+      (void)apply_move_list(globals, &current_game, &plycount, 0, false);
     }
-    if (current_game.moves_ok || GlobalState.keep_broken_games) {
-      if (GlobalState.json_format) {
-        if (GlobalState.num_non_matching_games == 0) {
-          fputs("[\n", GlobalState.non_matching_file);
+    if (current_game.moves_ok || globals->keep_broken_games) {
+      if (globals->json_format) {
+        if (globals->num_non_matching_games == 0) {
+          fputs("[\n", globals->non_matching_file);
         } else {
-          fputs(",\n", GlobalState.non_matching_file);
+          fputs(",\n", globals->non_matching_file);
         }
       }
-      GlobalState.num_non_matching_games++;
-      output_game(&current_game, GlobalState.non_matching_file);
+      globals->num_non_matching_games++;
+      output_game(globals, &current_game, globals->non_matching_file);
     }
   }
-  if (game_matches && GlobalState.matching_game_numbers != NULL &&
-      in_game_number_range(GlobalState.num_games_matched,
-                           GlobalState.next_game_number_to_output)) {
-    if (GlobalState.num_games_matched ==
-        GlobalState.next_game_number_to_output->max) {
-      GlobalState.next_game_number_to_output =
-          GlobalState.next_game_number_to_output->next;
+  if (game_matches && globals->matching_game_numbers != NULL &&
+      in_game_number_range(globals->num_games_matched,
+                           globals->next_game_number_to_output)) {
+    if (globals->num_games_matched ==
+        globals->next_game_number_to_output->max) {
+      globals->next_game_number_to_output =
+          globals->next_game_number_to_output->next;
     }
   }
 
@@ -1189,22 +1193,23 @@ static void deal_with_game(Move *move_list, unsigned long start_line,
     free_position_count_list(current_game.position_counts);
     current_game.position_counts = NULL;
   }
-  if (GlobalState.verbosity != 0 &&
-      (GlobalState.num_games_processed % PROGRESS_RATE) == 0) {
-    fprintf(stderr, "Games: %lu\r", GlobalState.num_games_processed);
+  if (globals->verbosity != 0 &&
+      (globals->num_games_processed % PROGRESS_RATE) == 0) {
+    fprintf(stderr, "Games: %lu\r", globals->num_games_processed);
   }
 }
 
 /*
  * Output the given game to the output file.
- * If GlobalState.split_variants then this will involve outputting
+ * If globals->split_variants then this will involve outputting
  * each variation separately.
  */
-static void output_game(Game *game, FILE *outputfile) {
-  if (GlobalState.split_variants && GlobalState.keep_variations) {
-    split_variants(game, outputfile, 0);
+static void output_game(const StateInfo *globals, Game *game,
+                        FILE *outputfile) {
+  if (globals->split_variants && globals->keep_variations) {
+    split_variants(globals, game, outputfile, 0);
   } else {
-    format_game(game, outputfile);
+    format_game(globals, game, outputfile);
   }
 }
 
@@ -1214,7 +1219,8 @@ static void output_game(Game *game, FILE *outputfile) {
  * This is done recursively and depth (>=0) defines the current
  * level of recursion.
  */
-static void split_variants(Game *game, FILE *outputfile, unsigned depth) {
+static void split_variants(const StateInfo *globals, Game *game,
+                           FILE *outputfile, unsigned depth) {
   /* Gather all the suffix comments at this level. */
   Move *move = game->moves;
   while (move != NULL) {
@@ -1231,10 +1237,9 @@ static void split_variants(Game *game, FILE *outputfile, unsigned depth) {
   }
 
   /* Format the main line at this level. */
-  format_game(game, outputfile);
+  format_game(globals, game, outputfile);
 
-  if (GlobalState.split_depth_limit == 0 ||
-      GlobalState.split_depth_limit > depth) {
+  if (globals->split_depth_limit == 0 || globals->split_depth_limit > depth) {
     /* Now all the variations. */
     char *result_tag = game->tags[RESULT_TAG];
     game->tags[RESULT_TAG] = copy_string("*");
@@ -1272,7 +1277,7 @@ static void split_variants(Game *game, FILE *outputfile, unsigned depth) {
                   append_comment(prefix_comment, game->prefix_comment);
             }
           }
-          split_variants(game, outputfile, depth + 1);
+          split_variants(globals, game, outputfile, depth + 1);
           if (prefix_comment != NULL) {
             /* Remove the appended comments. */
             CommentList *list;
@@ -1318,7 +1323,7 @@ static void split_variants(Game *game, FILE *outputfile, unsigned depth) {
   }
 }
 
-static void deal_with_ECO_line(Move *move_list) {
+static void deal_with_ECO_line(const StateInfo *globals, Move *move_list) {
   Game current_game;
   /* We need to know the length of a game to store with the
    * hash information as a sanity check.
@@ -1341,10 +1346,11 @@ static void deal_with_ECO_line(Move *move_list) {
    * fields of current_game.
    */
   Board *final_position =
-      apply_eco_move_list(&current_game, &number_of_half_moves);
+      apply_eco_move_list(globals, &current_game, &number_of_half_moves);
   if (final_position != NULL) {
     /* Store the ECO code in the appropriate hash location. */
-    save_eco_details(&current_game, final_position, number_of_half_moves);
+    save_eco_details(globals, &current_game, final_position,
+                     number_of_half_moves);
   }
 
   /* Game is finished with, so free everything. */
@@ -1363,18 +1369,18 @@ static void deal_with_ECO_line(Move *move_list) {
 /* If file_type == ECOFILE we are dealing with a file of ECO
  * input rather than a normal game file.
  */
-int yyparse(SourceFileType file_type) {
+int yyparse(StateInfo *globals, SourceFileType file_type) {
   setup_for_new_game();
-  current_symbol = skip_to_next_game(NO_TOKEN);
-  parse_opt_game_list(file_type);
+  current_symbol = skip_to_next_game(globals, NO_TOKEN);
+  parse_opt_game_list(globals, file_type);
   if (current_symbol == EOF_TOKEN) {
     /* Ok -- EOF. */
     return 0;
-  } else if (finished_processing()) {
+  } else if (finished_processing(globals)) {
     /* Ok -- done all we need to. */
     return 0;
   } else {
-    fprintf(GlobalState.logfile, "End of input reached before end of file.\n");
+    fprintf(globals->logfile, "End of input reached before end of file.\n");
     return 1;
   }
 }

@@ -47,9 +47,10 @@ typedef struct EcoLog {
 EcoLog *eco_matches(const Board *board, HashCode cumulative_hash_value,
                     unsigned half_moves_played);
 bool add_ECO(Game game_details);
-FILE *open_eco_output_file(EcoDivision ECO_level, const char *eco);
+FILE *open_eco_output_file(const StateInfo *globals, EcoDivision ECO_level,
+                           const char *eco);
 void initEcoTable(void);
-void save_eco_details(const Game *game_details, const Board *final_position,
-                      unsigned number_of_moves);
+void save_eco_details(const StateInfo *globals, const Game *game_details,
+                      const Board *final_position, unsigned number_of_moves);
 
 #endif // ECO_H

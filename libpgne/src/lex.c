@@ -21,14 +21,11 @@
 
 #include "lex.h"
 
-#include "apply.h"
 #include "decode.h"
 #include "defs.h"
 #include "grammar.h"
 #include "lines.h"
-#include "moves.h"
 #include "mymalloc.h"
-#include "output.h"
 #include "taglist.h"
 #include "tokens.h"
 #include "typedef.h"
@@ -47,18 +44,19 @@
 #endif
 
 /* Prototypes for the functions in this file. */
-static bool extract_yytext(const unsigned char *symbol_start,
+static bool extract_yytext(const StateInfo *globals,
+                           const unsigned char *symbol_start,
                            const unsigned char *linep);
 static int identify_tag(const char *tag_string);
-static TagName make_new_tag(const char *tag);
-static bool open_input(const char *infile);
-static bool open_input_file(int file_number);
+static TagName make_new_tag(const StateInfo *globals, const char *tag);
+static bool open_input(StateInfo *globals, const char *infile);
+static bool open_input_file(StateInfo *globals, int file_number);
 /* When a move is saved, what is known of its source and destination coordinates
  * should also be saved.
  */
-static void save_k_castle(void);
-static void save_move(const unsigned char *move);
-static void save_q_castle(void);
+static void save_k_castle(const StateInfo *globals);
+static void save_move(const StateInfo *globals, const unsigned char *move);
+static void save_q_castle(const StateInfo *globals);
 static void save_string(const char *result);
 static void terminate_input(void);
 
@@ -99,7 +97,7 @@ static unsigned tag_list_length = 0;
  * The indices are the same as for TagList.
  */
 static bool *suppressed_tags;
-/* Nested comment depth: GlobalState.allow_nested_comments. */
+/* Nested comment depth: globals->allow_nested_comments. */
 static unsigned comment_depth = 0;
 
 /* Initialise the TagList. This should be stored in alphabetical order,
@@ -171,7 +169,7 @@ static void init_list_of_known_tags(void) {
  * Return the current value of tag_list_length as its
  * index, having incremented its value.
  */
-static TagName make_new_tag(const char *tag) {
+static TagName make_new_tag(const StateInfo *globals, const char *tag) {
   unsigned tag_index = tag_list_length;
   tag_list_length++;
   TagList = (const char **)realloc_or_die((void *)TagList,
@@ -183,37 +181,35 @@ static TagName make_new_tag(const char *tag) {
   /* Ensure that the game header's tags array can accommodate
    * the new tag.
    */
-  increase_game_header_tags_length(tag_list_length);
+  increase_game_header_tags_length(globals, tag_list_length);
   return tag_index;
 }
 
-const char *tag_header_string(TagName tag) {
+const char *tag_header_string(const StateInfo *globals, TagName tag) {
   if (tag < tag_list_length) {
     return TagList[tag];
   } else {
-    fprintf(GlobalState.logfile, "Internal error in tag_header_string(%d)\n",
-            tag);
+    fprintf(globals->logfile, "Internal error in tag_header_string(%d)\n", tag);
     exit(1);
     return NULL;
   }
 }
 
-bool is_suppressed_tag(TagName tag) {
+bool is_suppressed_tag(const StateInfo *globals, TagName tag) {
   if (tag < tag_list_length) {
     return suppressed_tags[tag];
   } else {
-    fprintf(GlobalState.logfile, "Internal error in is_suppressed_tag(%d)\n",
-            tag);
+    fprintf(globals->logfile, "Internal error in is_suppressed_tag(%d)\n", tag);
     exit(1);
     return false;
   }
 }
 
 /* Don't include the given tag on output. */
-void suppress_tag(const char *tag_string) {
+void suppress_tag(const StateInfo *globals, const char *tag_string) {
   int tag_item = identify_tag(tag_string);
   if (tag_item < 0) {
-    tag_item = make_new_tag(tag_string);
+    tag_item = make_new_tag(globals, tag_string);
   }
   suppressed_tags[tag_item] = true;
 }
@@ -336,7 +332,8 @@ void init_lex_tables(void) {
  * error prone, so there is some code attempting recovery
  * if requested.
  */
-LinePair gather_string(char *line, unsigned char *linep) {
+LinePair gather_string(const StateInfo *globals, char *line,
+                       unsigned char *linep) {
   LinePair resulting_line;
   char ch;
   unsigned len = 0;
@@ -351,8 +348,8 @@ LinePair gather_string(char *line, unsigned char *linep) {
       ch = *linep++;
       len++;
       if (ch == '\0') {
-        fprintf(GlobalState.logfile, "Missing escaped character in string.\n");
-        print_error_context(GlobalState.logfile);
+        fprintf(globals->logfile, "Missing escaped character in string.\n");
+        print_error_context(globals, globals->logfile);
         end_of_string = true;
       }
     } else if (ch == '"' || ch == '\0') {
@@ -362,7 +359,7 @@ LinePair gather_string(char *line, unsigned char *linep) {
     }
   } while (!end_of_string);
 
-  if (GlobalState.fix_tag_strings && ch == '"') {
+  if (globals->fix_tag_strings && ch == '"') {
     /* Look for potentially badly formatted tag strings.
      * Don't assume that the second double-quote character
      * is the termination point.
@@ -377,8 +374,8 @@ LinePair gather_string(char *line, unsigned char *linep) {
       lookahead++;
     }
     if (malformed) {
-      fprintf(GlobalState.logfile, "Malformed tag string.\n");
-      print_error_context(GlobalState.logfile);
+      fprintf(globals->logfile, "Malformed tag string.\n");
+      print_error_context(globals, globals->logfile);
       lookahead--;
       while (lookahead > linep && ChTab[*lookahead] == WHITESPACE) {
         lookahead--;
@@ -434,8 +431,8 @@ LinePair gather_string(char *line, unsigned char *linep) {
    */
   if (ch == '\0') {
     /* Too far. */
-    if (!GlobalState.skipping_current_game) {
-      fprintf(GlobalState.logfile, "Missing closing quote in %s\n", line);
+    if (!globals->skipping_current_game) {
+      fprintf(globals->logfile, "Missing closing quote in %s\n", line);
     }
     if (len > 1) {
       /* Move back to the null. */
@@ -462,7 +459,8 @@ bool is_character_class(unsigned char ch, TokenType character_class) {
 /* Starting from linep in line, gather up a comment until
  * the END_COMMENT.  Skip over the END_COMMENT.
  */
-static LinePair gather_comment(char *line, unsigned char *linep) {
+static LinePair gather_comment(const StateInfo *globals, char *line,
+                               unsigned char *linep) {
   LinePair resulting_line;
   char ch;
   unsigned len = 0;
@@ -471,7 +469,7 @@ static LinePair gather_comment(char *line, unsigned char *linep) {
   /* The pointer to be returned. */
   CommentList *comment;
 
-  /* GlobalState.allow_nested_comments. */
+  /* globals->allow_nested_comments. */
   comment_depth++;
 
   do {
@@ -481,11 +479,11 @@ static LinePair gather_comment(char *line, unsigned char *linep) {
       ch = *linep++;
       len++;
       if (ch == '{') {
-        if (GlobalState.allow_nested_comments) {
+        if (globals->allow_nested_comments) {
           comment_depth++;
         }
       } else if (ch == '}') {
-        if (GlobalState.allow_nested_comments) {
+        if (globals->allow_nested_comments) {
           if (comment_depth > 1) {
             comment_depth--;
             /* Prevent this terminating the outer level. */
@@ -501,7 +499,7 @@ static LinePair gather_comment(char *line, unsigned char *linep) {
     }
     /* The last character doesn't belong in the comment. */
     len--;
-    if (GlobalState.keep_comments) {
+    if (globals->keep_comments) {
       char *comment_str;
 
       unsigned const char *str = linep - len - 1;
@@ -524,13 +522,13 @@ static LinePair gather_comment(char *line, unsigned char *linep) {
       current_comment = save_string_list_item(current_comment, comment_str);
     }
     if (ch == '\0') {
-      line = next_input_line(yyin);
+      line = next_input_line(globals, yyin);
       linep = (unsigned char *)line;
     }
   } while ((ch != '}') && (line != NULL));
   if (comment_depth > 0) {
-    fprintf(GlobalState.logfile, "Missing end of a nested comment.\n");
-    report_details(GlobalState.logfile);
+    fprintf(globals->logfile, "Missing end of a nested comment.\n");
+    report_details(globals->logfile);
   }
 
   /* Set up the structure to be returned. */
@@ -548,10 +546,11 @@ static LinePair gather_comment(char *line, unsigned char *linep) {
 /* Starting from linep in line, gather up a comment until
  * the END_COMMENT.  Skip over the END_COMMENT.
  */
-static LinePair gather_single_line_comment(char *line, unsigned char *linep) {
+static LinePair gather_single_line_comment(const StateInfo *globals, char *line,
+                                           unsigned char *linep) {
   LinePair resulting_line;
 
-  if (GlobalState.keep_comments) {
+  if (globals->keep_comments) {
     /* The string list in which the current comment will be gathered. */
     StringList *current_comment = NULL;
     /* The pointer to be returned. */
@@ -602,7 +601,7 @@ static LinePair gather_single_line_comment(char *line, unsigned char *linep) {
     resulting_line.token = NO_TOKEN;
   }
 
-  resulting_line.line = next_input_line(yyin);
+  resulting_line.line = next_input_line(globals, yyin);
   resulting_line.linep = (unsigned char *)resulting_line.line;
   return resulting_line;
 }
@@ -610,7 +609,8 @@ static LinePair gather_single_line_comment(char *line, unsigned char *linep) {
 /* Remember that 0 can start 0-1 and 0-0.
  * Remember that 1 can start 1-0 and 1/2.
  */
-static LinePair gather_possible_numeric(char *line, unsigned char *linep,
+static LinePair gather_possible_numeric(const StateInfo *globals, char *line,
+                                        unsigned char *linep,
                                         char initial_digit) {
   LinePair resulting_line;
   TokenType token = MOVE_NUMBER;
@@ -625,11 +625,11 @@ static LinePair gather_possible_numeric(char *line, unsigned char *linep,
       linep += 2;
     } else if (strncmp((const char *)linep, "-0-0", 4) == 0) {
       token = MOVE;
-      save_q_castle();
+      save_q_castle(globals);
       linep += 4;
     } else if (strncmp((const char *)linep, "-0", 2) == 0) {
       token = MOVE;
-      save_k_castle();
+      save_k_castle(globals);
       linep += 2;
     } else {
       /* MOVE_NUMBER */
@@ -665,7 +665,7 @@ static LinePair gather_possible_numeric(char *line, unsigned char *linep,
   }
   if (token == MOVE_NUMBER) {
     /* Fill out the fields of yylval. */
-    if (extract_yytext(symbol_start, linep)) {
+    if (extract_yytext(globals, symbol_start, linep)) {
       yylval.move_number = 0;
       (void)sscanf((const char *)yytext, "%u", &yylval.move_number);
       /* Skip any trailing dots. */
@@ -706,7 +706,8 @@ static int identify_tag(const char *tag_string) {
 /* Starting from linep in line, gather up the tag name.
  * Skip over any preceding white space.
  */
-LinePair gather_tag(char *line, unsigned char *linep) {
+LinePair gather_tag(const StateInfo *globals, char *line,
+                    unsigned char *linep) {
   LinePair resulting_line;
   char ch;
   unsigned len = 0;
@@ -714,7 +715,7 @@ LinePair gather_tag(char *line, unsigned char *linep) {
   do {
     /* Check for end of line while skipping white space. */
     if (*linep == '\0') {
-      line = next_input_line(yyin);
+      line = next_input_line(globals, yyin);
       linep = (unsigned char *)line;
     }
     if (line != NULL) {
@@ -742,14 +743,14 @@ LinePair gather_tag(char *line, unsigned char *linep) {
       tag_string[len] = '\0';
       tag_item = identify_tag(tag_string);
       if (tag_item < 0) {
-        tag_item = make_new_tag(tag_string);
+        tag_item = make_new_tag(globals, tag_string);
       }
       if (tag_item >= 0 && ((unsigned)tag_item) < tag_list_length) {
         yylval.tag_index = tag_item;
         resulting_line.token = TAG;
         (void)free((void *)tag_string);
       } else {
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "Internal error: invalid tag index %d in gather_tag.\n",
                 tag_item);
         exit(1);
@@ -765,7 +766,8 @@ LinePair gather_tag(char *line, unsigned char *linep) {
   return resulting_line;
 }
 
-static bool extract_yytext(const unsigned char *symbol_start,
+static bool extract_yytext(const StateInfo *globals,
+                           const unsigned char *symbol_start,
                            const unsigned char *linep) {
   /* Whether the string fitted. */
   bool Ok = true;
@@ -777,8 +779,8 @@ static bool extract_yytext(const unsigned char *symbol_start,
   } else {
     strncpy((char *)yytext, (const char *)symbol_start, MAX_YYTEXT);
     yytext[MAX_YYTEXT] = '\0';
-    if (!GlobalState.skipping_current_game)
-      fprintf(GlobalState.logfile, "Symbol %s exceeds length of %u.\n", yytext,
+    if (!globals->skipping_current_game)
+      fprintf(globals->logfile, "Symbol %s exceeds length of %u.\n", yytext,
               MAX_YYTEXT);
     Ok = false;
   }
@@ -788,7 +790,7 @@ static bool extract_yytext(const unsigned char *symbol_start,
 /* Identify the next symbol.
  * Don't take any action on EOF -- leave that to next_token.
  */
-static TokenType get_next_symbol(void) {
+static TokenType get_next_symbol(const StateInfo *globals) {
   static char *line = NULL;
   static unsigned char *linep = NULL;
   /* The token to be returned. */
@@ -802,7 +804,7 @@ static TokenType get_next_symbol(void) {
     /* Clear any remaining symbol. */
     *yytext = '\0';
     if (line == NULL) {
-      line = next_input_line(yyin);
+      line = next_input_line(globals, yyin);
       linep = (unsigned char *)line;
       if (line != NULL) {
         token = NO_TOKEN;
@@ -825,7 +827,7 @@ static TokenType get_next_symbol(void) {
         token = NO_TOKEN;
         break;
       case TAG_START:
-        resulting_line = gather_tag(line, linep);
+        resulting_line = gather_tag(globals, line, linep);
         /* Pick up where we are now. */
         line = resulting_line.line;
         linep = resulting_line.linep;
@@ -835,22 +837,22 @@ static TokenType get_next_symbol(void) {
         // token = NO_TOKEN;
         break;
       case DOUBLE_QUOTE:
-        resulting_line = gather_string(line, linep);
+        resulting_line = gather_string(globals, line, linep);
         /* Pick up where we are now. */
         line = resulting_line.line;
         linep = resulting_line.linep;
         token = resulting_line.token;
         break;
       case COMMENT_START:
-        resulting_line = gather_comment(line, linep);
+        resulting_line = gather_comment(globals, line, linep);
         /* Pick up where we are now. */
         line = resulting_line.line;
         linep = resulting_line.linep;
         token = resulting_line.token;
         break;
       case COMMENT_END:
-        if (!GlobalState.skipping_current_game) {
-          fprintf(GlobalState.logfile, "Unmatched comment end on line %lu.\n",
+        if (!globals->skipping_current_game) {
+          fprintf(globals->logfile, "Unmatched comment end on line %lu.\n",
                   line_number);
         }
         token = NO_TOKEN;
@@ -859,7 +861,7 @@ static TokenType get_next_symbol(void) {
         while (isdigit((unsigned)*linep)) {
           linep++;
         }
-        if (extract_yytext(symbol_start, linep)) {
+        if (extract_yytext(globals, symbol_start, linep)) {
           save_string((const char *)yytext);
         } else {
           token = NO_TOKEN;
@@ -871,7 +873,7 @@ static TokenType get_next_symbol(void) {
         while (ChTab[(unsigned)*linep] == ANNOTATE) {
           linep++;
         }
-        if (extract_yytext(symbol_start, linep)) {
+        if (extract_yytext(globals, symbol_start, linep)) {
           switch (yytext[0]) {
           case '!':
             switch (yytext[1]) {
@@ -916,7 +918,7 @@ static TokenType get_next_symbol(void) {
         token = NO_TOKEN;
         break;
       case SEMICOLON:
-        resulting_line = gather_single_line_comment(line, linep);
+        resulting_line = gather_single_line_comment(globals, line, linep);
         /* Pick up where we are now. */
         line = resulting_line.line;
         linep = resulting_line.linep;
@@ -925,7 +927,7 @@ static TokenType get_next_symbol(void) {
       case PERCENT:
         if (symbol_start == (const unsigned char *)line) {
           /* Discard the rest of the line. */
-          line = next_input_line(yyin);
+          line = next_input_line(globals, yyin);
           linep = (unsigned char *)line;
           token = NO_TOKEN;
         } else {
@@ -946,13 +948,13 @@ static TokenType get_next_symbol(void) {
           while (MoveChars[*linep & 0x0ff]) {
             linep++;
           }
-          if (extract_yytext(symbol_start, linep)) {
+          if (extract_yytext(globals, symbol_start, linep)) {
             /* Only classify it as a move if it
              * seems to be a complete move.
              */
             bool ok;
             if (move_seems_valid(yytext)) {
-              save_move(yytext);
+              save_move(globals, yytext);
               token = MOVE;
               ok = true;
             } else if (next_char == 'e') {
@@ -982,10 +984,10 @@ static TokenType get_next_symbol(void) {
               ok = false;
             }
             if (!ok) {
-              if (!GlobalState.skipping_current_game) {
+              if (!globals->skipping_current_game) {
                 line_position = linep - (unsigned char *)line;
-                print_error_context(GlobalState.logfile);
-                fprintf(GlobalState.logfile, "Unknown move text %s.\n", yytext);
+                print_error_context(globals, globals->logfile);
+                fprintf(globals->logfile, "Unknown move text %s.\n", yytext);
               }
               token = NO_TOKEN;
             }
@@ -994,20 +996,20 @@ static TokenType get_next_symbol(void) {
           }
         } else if (next_char == 'Z' && *linep == '0') {
           linep++;
-          save_move((const unsigned char *)NULL_MOVE_STRING);
+          save_move(globals, (const unsigned char *)NULL_MOVE_STRING);
           token = MOVE;
         } else {
-          if (!GlobalState.skipping_current_game) {
+          if (!globals->skipping_current_game) {
             line_position = linep - (unsigned char *)line;
-            print_error_context(GlobalState.logfile);
-            fprintf(GlobalState.logfile, "Unknown character %c (Hex: %x).\n",
+            print_error_context(globals, globals->logfile);
+            fprintf(globals->logfile, "Unknown character %c (Hex: %x).\n",
                     next_char, next_char);
-            fprintf(GlobalState.logfile, "%s\n", line);
+            fprintf(globals->logfile, "%s\n", line);
             for (unsigned i = 0; i < line_position - 1; i++) {
-              fputc(' ', GlobalState.logfile);
+              fputc(' ', globals->logfile);
             }
-            fputc('^', GlobalState.logfile);
-            fputc('\n', GlobalState.logfile);
+            fputc('^', globals->logfile);
+            fputc('\n', globals->logfile);
           }
           /* Skip any sequence of them. */
           while (ChTab[(unsigned)*linep] == ERROR_TOKEN) {
@@ -1019,7 +1021,8 @@ static TokenType get_next_symbol(void) {
         /* Remember that 0 can start 0-1 and 0-0.
          * Remember that 1 can start 1-0 and 1/2.
          */
-        resulting_line = gather_possible_numeric(line, linep, next_char);
+        resulting_line =
+            gather_possible_numeric(globals, line, linep, next_char);
         /* Pick up where we are now. */
         line = resulting_line.line;
         linep = resulting_line.linep;
@@ -1034,10 +1037,10 @@ static TokenType get_next_symbol(void) {
         if (RAV_level > 0) {
           RAV_level--;
         } else {
-          if (!GlobalState.skipping_current_game) {
+          if (!globals->skipping_current_game) {
             line_position = linep - (unsigned char *)line;
-            print_error_context(GlobalState.logfile);
-            fprintf(GlobalState.logfile, "Too many ')' found.\n");
+            print_error_context(globals, globals->logfile);
+            fprintf(globals->logfile, "Too many ')' found.\n");
           }
           token = NO_TOKEN;
         }
@@ -1049,12 +1052,12 @@ static TokenType get_next_symbol(void) {
       case DASH:
         if (ChTab[(unsigned)*linep] == DASH) {
           linep++;
-          save_move((const unsigned char *)NULL_MOVE_STRING);
+          save_move(globals, (const unsigned char *)NULL_MOVE_STRING);
           token = MOVE;
         } else {
           line_position = linep - (unsigned char *)line;
-          fprintf(GlobalState.logfile, "Single '-' not allowed.\n");
-          print_error_context(GlobalState.logfile);
+          fprintf(globals->logfile, "Single '-' not allowed.\n");
+          print_error_context(globals, globals->logfile);
           token = NO_TOKEN;
         }
         break;
@@ -1067,24 +1070,24 @@ static TokenType get_next_symbol(void) {
           token = NO_TOKEN;
         } else {
           token = NO_TOKEN;
-          if (!GlobalState.skipping_current_game) {
+          if (!globals->skipping_current_game) {
             line_position = linep - (unsigned char *)line;
-            print_error_context(GlobalState.logfile);
-            fprintf(GlobalState.logfile, "Single '/' not allowed.");
+            print_error_context(globals, globals->logfile);
+            fprintf(globals->logfile, "Single '/' not allowed.");
           }
         }
         break;
       case EOS:
         /* End of the string. */
-        line = next_input_line(yyin);
+        line = next_input_line(globals, yyin);
         linep = (unsigned char *)line;
         token = NO_TOKEN;
         break;
       case ERROR_TOKEN:
-        if (!GlobalState.skipping_current_game) {
+        if (!globals->skipping_current_game) {
           line_position = linep - (unsigned char *)line;
-          print_error_context(GlobalState.logfile);
-          fprintf(GlobalState.logfile, "Unknown character %c (Hex: %x).\n",
+          print_error_context(globals, globals->logfile);
+          fprintf(globals->logfile, "Unknown character %c (Hex: %x).\n",
                   next_char, next_char);
         }
         /* Skip any sequence of them. */
@@ -1094,8 +1097,8 @@ static TokenType get_next_symbol(void) {
         break;
       case OPERATOR:
         line_position = linep - (unsigned char *)line;
-        print_error_context(GlobalState.logfile);
-        fprintf(GlobalState.logfile, "Operator in illegal context: %c.\n",
+        print_error_context(globals, globals->logfile);
+        fprintf(globals->logfile, "Operator in illegal context: %c.\n",
                 *symbol_start);
         /* Skip any sequence of them. */
         while (ChTab[(unsigned)*linep] == OPERATOR)
@@ -1103,10 +1106,10 @@ static TokenType get_next_symbol(void) {
         token = NO_TOKEN;
         break;
       default:
-        if (!GlobalState.skipping_current_game) {
+        if (!globals->skipping_current_game) {
           line_position = linep - (unsigned char *)line;
-          print_error_context(GlobalState.logfile);
-          fprintf(GlobalState.logfile,
+          print_error_context(globals, globals->logfile);
+          fprintf(globals->logfile,
                   "Internal error: Missing case for %d on char %x.\n", token,
                   next_char);
         }
@@ -1119,12 +1122,13 @@ static TokenType get_next_symbol(void) {
   return token;
 }
 
-TokenType next_token(void) {
-  TokenType token = get_next_symbol();
+TokenType next_token(StateInfo *globals) {
+  TokenType token = get_next_symbol(globals);
 
   /* Don't call yywrap if parsing the ECO file. */
-  while ((token == EOF_TOKEN) && !GlobalState.parsing_ECO_file && !yywrap()) {
-    token = get_next_symbol();
+  while ((token == EOF_TOKEN) && !globals->parsing_ECO_file &&
+         !yywrap(globals)) {
+    token = get_next_symbol(globals);
   }
   return token;
 }
@@ -1149,9 +1153,9 @@ static bool skip_token(TokenType token) {
  * a tag section a terminating result from the
  * previous game, or a move.
  */
-TokenType skip_to_next_game(TokenType token) {
+TokenType skip_to_next_game(StateInfo *globals, TokenType token) {
   if (skip_token(token)) {
-    GlobalState.skipping_current_game = true;
+    globals->skipping_current_game = true;
     do {
       if (token == COMMENT) {
         /* Free the space. */
@@ -1161,27 +1165,31 @@ TokenType skip_to_next_game(TokenType token) {
           yylval.comment = NULL;
         }
       }
-      token = next_token();
+      token = next_token(globals);
     } while (skip_token(token));
-    GlobalState.skipping_current_game = false;
+    globals->skipping_current_game = false;
   }
   return token;
 }
 
 /* Save castling moves in a standard way. */
-static void save_q_castle(void) { save_move((const unsigned char *)"O-O-O"); }
+static void save_q_castle(const StateInfo *globals) {
+  save_move(globals, (const unsigned char *)"O-O-O");
+}
 
 /* Save castling moves in a standard way. */
-static void save_k_castle(void) { save_move((const unsigned char *)"O-O"); }
+static void save_k_castle(const StateInfo *globals) {
+  save_move(globals, (const unsigned char *)"O-O");
+}
 
 /* Make a copy of the matched text of the move. */
-static void save_move(const unsigned char *move) {
+static void save_move(const StateInfo *globals, const unsigned char *move) {
   if (strlen((char *)move) > MAX_MOVE_LEN) {
     fprintf(stderr, "Internal error: cannot handle %s (too long)\n", move);
     exit(1);
   }
   /* Decode the move into its components. */
-  yylval.move_details = decode_move(move);
+  yylval.move_details = decode_move(globals, move);
   /* Remember the last move. */
   strcpy((char *)last_move, (const char *)move);
 }
@@ -1245,14 +1253,14 @@ static int get_next_char(FILE *fpin) {
 }
 
 /* Unget the previous input character. */
-static void unget_char(int c, FILE *fpin) {
+static void unget_char(const StateInfo *globals, int c, FILE *fpin) {
   if (input_buffer_index > 0) {
     if (c != EOF) {
       input_buffer_index--;
     }
   } else {
-    fprintf(GlobalState.logfile, "Internal error: unget_char(%c)\n", c);
-    report_details(GlobalState.logfile);
+    fprintf(globals->logfile, "Internal error: unget_char(%c)\n", c);
+    report_details(globals->logfile);
     exit(1);
   }
 }
@@ -1261,7 +1269,7 @@ static void unget_char(int c, FILE *fpin) {
 #define INIT_LINE_LENGTH 100
 #define LINE_INCREMENT 100
 
-char *read_line(FILE *fpin) {
+char *read_line(const StateInfo *globals, FILE *fpin) {
   char *line = NULL;
   unsigned len = 0;
   unsigned max_length;
@@ -1290,7 +1298,7 @@ char *read_line(FILE *fpin) {
       /* Try to avoid double counting lines in dos-format files. */
       ch = get_next_char(fpin);
       if (ch != '\n' && ch != EOF) {
-        unget_char(ch, fpin);
+        unget_char(globals, ch, fpin);
       }
     }
   }
@@ -1301,7 +1309,8 @@ char *read_line(FILE *fpin) {
  * to be added to the existing list_of_files.
  * list_of_files.list must have a (char *)NULL on the end.
  */
-void add_filename_list_from_file(FILE *fp, SourceFileType file_type) {
+void add_filename_list_from_file(const StateInfo *globals, FILE *fp,
+                                 SourceFileType file_type) {
   if ((list_of_files.files == NULL) || (list_of_files.max_files == 0)) {
     /* Allocate an initial number of pointers for the lines.
      * This must always include an extra one for terminating NULL.
@@ -1315,25 +1324,26 @@ void add_filename_list_from_file(FILE *fp, SourceFileType file_type) {
   }
   if (list_of_files.files != NULL) {
     /* Find the first line. */
-    char *line = read_line(fp);
+    char *line = read_line(globals, fp);
 
     while (line != NULL) {
       if (non_blank_line(line)) {
-        add_filename_to_source_list(line, file_type);
+        add_filename_to_source_list(globals, line, file_type);
       } else {
         (void)free((void *)line);
       }
-      line = read_line(fp);
+      line = read_line(globals, fp);
     }
   }
 }
 
 void add_filename_to_source_list(
-    const char *filename, SourceFileType file_type) { /* Where to put it. */
+    const StateInfo *globals, const char *filename,
+    SourceFileType file_type) { /* Where to put it. */
   unsigned location = list_of_files.num_files;
 
   if (access(filename, R_OK) != 0) {
-    fprintf(GlobalState.logfile, "Unable to find %s\n", filename);
+    fprintf(globals->logfile, "Unable to find %s\n", filename);
     exit(1);
   } else {
     /* Ok. */
@@ -1400,28 +1410,29 @@ void add_filename_to_source_list(
 }
 
 /* Use infile as the input source. */
-static bool open_input(const char *infile) {
+static bool open_input(StateInfo *globals, const char *infile) {
   yyin = fopen(infile, "rb");
   if (yyin != NULL) {
-    GlobalState.current_input_file = infile;
-    if (GlobalState.verbosity > 1) {
-      fprintf(GlobalState.logfile, "Processing %s\n",
-              GlobalState.current_input_file);
+    globals->current_input_file = infile;
+    if (globals->verbosity > 1) {
+      fprintf(globals->logfile, "Processing %s\n", globals->current_input_file);
     }
   }
   return yyin != NULL;
 }
 
 /* Simple interface to open_input for the ECO file. */
-bool open_eco_file(const char *eco_file) { return open_input(eco_file); }
+bool open_eco_file(StateInfo *globals, const char *eco_file) {
+  return open_input(globals, eco_file);
+}
 
 /* Open the input file whose number is the argument. */
-static bool open_input_file(int file_number) {
+static bool open_input_file(StateInfo *globals, int file_number) {
   /* Depending on the type of file, ensure that the
    * current_file_type is set correctly.
    */
-  if (open_input(list_of_files.files[file_number])) {
-    GlobalState.current_file_type = list_of_files.file_type[file_number];
+  if (open_input(globals, list_of_files.files[file_number])) {
+    globals->current_file_type = list_of_files.file_type[file_number];
     return true;
   } else {
     return false;
@@ -1429,23 +1440,22 @@ static bool open_input_file(int file_number) {
 }
 
 /* Open the first input file. */
-bool open_first_file(void) {
+bool open_first_file(StateInfo *globals) {
   bool ok = true;
 
   if (list_of_files.num_files == 0) {
     /* Use standard input. */
     yyin = stdin;
-    GlobalState.current_input_file = "stdin";
+    globals->current_input_file = "stdin";
     /* @@@ Should this be set?
-    GlobalState.current_file_type = NORMALFILE;
+    globals->current_file_type = NORMALFILE;
      */
-    if (GlobalState.verbosity > 1) {
-      fprintf(GlobalState.logfile, "Processing %s\n",
-              GlobalState.current_input_file);
+    if (globals->verbosity > 1) {
+      fprintf(globals->logfile, "Processing %s\n", globals->current_input_file);
     }
-  } else if (open_input_file(0)) {
+  } else if (open_input_file(globals, 0)) {
   } else {
-    fprintf(GlobalState.logfile, "Unable to open the PGN file: %s\n",
+    fprintf(globals->logfile, "Unable to open the PGN file: %s\n",
             input_file_name(0));
     ok = false;
   }
@@ -1464,9 +1474,9 @@ const char *input_file_name(unsigned file_number) {
 }
 
 /* Give some error information. */
-void print_error_context(FILE *fp) {
-  if (GlobalState.current_input_file != NULL) {
-    fprintf(fp, "File %s: ", GlobalState.current_input_file);
+void print_error_context(const StateInfo *globals, FILE *fp) {
+  if (globals->current_input_file != NULL) {
+    fprintf(fp, "File %s: ", globals->current_input_file);
   }
   /* The error position will typically be 1 character past the current line
    * position. */
@@ -1486,6 +1496,7 @@ static void save_string(const char *str) {
 
 /* Return the next line of input from fp. */
 char *next_input_line(
+    const StateInfo *globals,
     FILE *fp) { /* Retain each line in turn, so as to be able to free it. */
   static char *line = NULL;
 
@@ -1493,7 +1504,7 @@ char *next_input_line(
     (void)free((void *)line);
   }
 
-  line = read_line(fp);
+  line = read_line(globals, fp);
 
   if (line != NULL) {
     line_number++;
@@ -1503,7 +1514,7 @@ char *next_input_line(
 }
 
 /* Handle the end of a file. */
-int yywrap(void) {
+int yywrap(StateInfo *globals) {
   int time_to_exit;
 
   /* Beware of this being called in inappropriate circumstances. */
@@ -1521,8 +1532,8 @@ int yywrap(void) {
     if (input_file_name(current_file_num) == NULL) {
       /* We have processed the last file. */
       time_to_exit = 1;
-    } else if (!open_input_file(current_file_num)) {
-      fprintf(GlobalState.logfile, "Unable to open the PGN file: %s\n",
+    } else if (!open_input_file(globals, current_file_num)) {
+      fprintf(globals->logfile, "Unable to open the PGN file: %s\n",
               input_file_name(current_file_num));
       time_to_exit = 1;
     } else {
@@ -1532,7 +1543,7 @@ int yywrap(void) {
       /* Depending on the type of file, ensure that the
        * current_file_type is set correctly.
        */
-      GlobalState.current_file_type = list_of_files.file_type[current_file_num];
+      globals->current_file_type = list_of_files.file_type[current_file_num];
       restart_lex_for_new_game();
       games_in_file = 0;
       reset_line_number();

@@ -24,14 +24,21 @@
 
 #include "typedef.h"
 
-int yyparse(SourceFileType file_type);
+int yyparse(StateInfo *globals, SourceFileType file_type);
 void free_string_list(StringList *list);
 void init_game_header(void);
-void increase_game_header_tags_length(unsigned new_length);
+void increase_game_header_tags_length(const StateInfo *globals,
+                                      unsigned new_length);
 void report_details(FILE *outfp);
 void append_comments_to_move(Move *move, CommentList *Comment);
 /* The following function is used for linking list items together. */
 StringList *save_string_list_item(StringList *list, const char *str);
 void free_comment_list(CommentList *comment_list);
+
+/* Provide access to the global state that has been set
+ * through command line arguments.
+ */
+FILE *must_open_file(const StateInfo *globals, const char *filename,
+                     const char *mode);
 
 #endif // GRAMMAR_H

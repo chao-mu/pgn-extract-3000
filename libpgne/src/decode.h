@@ -28,7 +28,7 @@
 
 Move *new_move_structure(void);
 Piece is_piece(const unsigned char *move);
-Move *decode_move(const unsigned char *move_string);
+Move *decode_move(const StateInfo *globals, const unsigned char *move_string);
 Move *decode_algebraic(Move *move_details, Board *board);
 bool is_check(char c);
 bool is_col(char c);

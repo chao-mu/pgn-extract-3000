@@ -25,6 +25,7 @@
 #include "defs.h"
 #include "eco.h"
 #include "fenmatcher.h"
+#include "grammar.h"
 #include "lex.h"
 #include "lines.h"
 #include "material.h"
@@ -33,7 +34,6 @@
 #include "output.h"
 #include "taglines.h"
 #include "taglist.h"
-#include "tokens.h"
 #include "typedef.h"
 
 #include <ctype.h>
@@ -61,10 +61,12 @@
 static const char argument_prefix[] = ":-";
 static const int argument_prefix_len = sizeof(argument_prefix) - 1;
 
-static ArgType classify_arg(const char *line);
-static game_number *extract_game_number_list(const char *number_list);
-static void read_args_file(const char *infile);
-static bool set_move_bounds(char bounds_or_ply, char limit, unsigned number);
+static ArgType classify_arg(const StateInfo *globals, const char *line);
+static game_number *extract_game_number_list(const StateInfo *globals,
+                                             const char *number_list);
+static void read_args_file(StateInfo *globals, const char *infile);
+static bool set_move_bounds(StateInfo *globals, char bounds_or_ply, char limit,
+                            unsigned number);
 
 #if defined(__unix__) || defined(__linux__) || defined(__APPLE__)
 int strcasecmp(const char *, const char *);
@@ -110,7 +112,7 @@ static const char *skip_leading_spaces(const char *str) {
 }
 
 /* Print a usage message, and exit. */
-static void usage_and_exit(void) {
+static void usage_and_exit(const StateInfo *globals) {
   const char *help_data[] = {
       "-7 -- output only the seven tag roster for each game. Other tags (apart",
       "      from FEN and possibly ECO) are discarded (See -e).",
@@ -310,64 +312,63 @@ static void usage_and_exit(void) {
 
   const char **data = help_data;
 
-  fprintf(GlobalState.logfile,
+  fprintf(globals->logfile,
           "pgn-extract %s (%s): a Portable Game Notation (PGN) manipulator.\n",
           CURRENT_VERSION, __DATE__);
-  fprintf(GlobalState.logfile,
+  fprintf(globals->logfile,
           "Copyright (C) 1994-2024 David J. Barnes (d.j.barnes@kent.ac.uk)\n");
-  fprintf(GlobalState.logfile, "%s\n\n", URL);
-  fprintf(GlobalState.logfile,
-          "Usage: pgn-extract [arguments] [file.pgn ...]\n");
+  fprintf(globals->logfile, "%s\n\n", URL);
+  fprintf(globals->logfile, "Usage: pgn-extract [arguments] [file.pgn ...]\n");
 
   for (; *data != NULL; data++) {
-    fprintf(GlobalState.logfile, "%s\n", *data);
+    fprintf(globals->logfile, "%s\n", *data);
   }
   exit(1);
 }
 
-static void read_args_file(const char *infile) {
+static void read_args_file(StateInfo *globals, const char *infile) {
   char *line;
   FILE *fp = fopen(infile, "r");
 
   if (fp == NULL) {
-    fprintf(GlobalState.logfile, "Cannot open %s for reading.\n", infile);
+    fprintf(globals->logfile, "Cannot open %s for reading.\n", infile);
     exit(1);
   } else {
     ArgType linetype = NO_ARGUMENT_MATCH;
     ArgType nexttype;
-    while ((line = read_line(fp)) != NULL) {
+    while ((line = read_line(globals, fp)) != NULL) {
       if (blank_line(line)) {
         (void)free((void *)line);
         continue;
       }
-      nexttype = classify_arg(line);
+      nexttype = classify_arg(globals, line);
       if (nexttype == NO_ARGUMENT_MATCH) {
         if (*line == argument_prefix[0]) {
           /* Treat the line as a source file name. */
-          add_filename_to_source_list(&line[1], NORMALFILE);
+          add_filename_to_source_list(globals, &line[1], NORMALFILE);
         } else if (linetype != NO_ARGUMENT_MATCH) {
           /* Handle the line. */
           switch (linetype) {
           case MOVES_ARGUMENT:
-            add_textual_variation_from_line(line);
+            add_textual_variation_from_line(globals, line);
             break;
           case POSITIONS_ARGUMENT:
-            add_positional_variation_from_line(line);
+            add_positional_variation_from_line(globals, line);
             break;
           case TAGS_ARGUMENT:
-            process_tag_line(infile, line, true);
+            process_tag_line(globals, infile, line, true);
             break;
           case TAG_ROSTER_ARGUMENT:
-            process_roster_line(line);
+            process_roster_line(globals, line);
             break;
           case ENDINGS_ARGUMENT:
           case ENDINGS_COLOURED_ARGUMENT:
-            process_material_description(line, linetype == ENDINGS_ARGUMENT,
-                                         false);
+            process_material_description(globals, line,
+                                         linetype == ENDINGS_ARGUMENT, false);
             (void)free((void *)line);
             break;
           default:
-            fprintf(GlobalState.logfile,
+            fprintf(globals->logfile,
                     "Internal error: unknown linetype %d in read_args_file\n",
                     linetype);
             (void)free((void *)line);
@@ -377,7 +378,7 @@ static void read_args_file(const char *infile) {
           /* It should have been a line applying to the
            * current linetype.
            */
-          fprintf(GlobalState.logfile,
+          fprintf(globals->logfile,
                   "Missing argument type for line %s in the argument file.\n",
                   line);
           exit(1);
@@ -406,7 +407,7 @@ static void read_args_file(const char *infile) {
         case TAG_EXTRACTION_ARGUMENT:
         case LINE_WIDTH_ARGUMENT:
         case OUTPUT_FORMAT_ARGUMENT:
-          process_argument(line[argument_prefix_len],
+          process_argument(globals, line[argument_prefix_len],
                            &line[argument_prefix_len + 1]);
           linetype = NO_ARGUMENT_MATCH;
           break;
@@ -419,10 +420,11 @@ static void read_args_file(const char *infile) {
             char *just_arg = (char *)malloc_or_die(arglen + 1);
             strncpy(just_arg, arg, arglen);
             just_arg[arglen] = '\0';
-            process_long_form_argument(just_arg, skip_leading_spaces(space));
+            process_long_form_argument(globals, just_arg,
+                                       skip_leading_spaces(space));
             (void)free((void *)just_arg);
           } else {
-            process_long_form_argument(arg, "");
+            process_long_form_argument(globals, arg, "");
             linetype = NO_ARGUMENT_MATCH;
           }
         } break;
@@ -446,7 +448,7 @@ static void read_args_file(const char *infile) {
         case SUPPRESS_ORIGINALS_ARGUMENT:
         case DONT_KEEP_VARIATIONS_ARGUMENT:
         case USE_VIRTUAL_HASH_TABLE_ARGUMENT:
-          process_argument(line[argument_prefix_len], "");
+          process_argument(globals, line[argument_prefix_len], "");
           linetype = NO_ARGUMENT_MATCH;
           break;
 
@@ -460,7 +462,7 @@ static void read_args_file(const char *infile) {
         case OUTPUT_FEN_STRING_ARGUMENT:
         case POSITIONS_ARGUMENT:
         case TAG_ROSTER_ARGUMENT:
-          process_argument(line[argument_prefix_len],
+          process_argument(globals, line[argument_prefix_len],
                            &line[argument_prefix_len + 1]);
           break;
         case TAGS_ARGUMENT:
@@ -482,7 +484,7 @@ static void read_args_file(const char *infile) {
  * indicated by the contents of the current line.
  * Arguments are assumed to start with the prefix ":-"
  */
-static ArgType classify_arg(const char *line) {
+static ArgType classify_arg(const StateInfo *globals, const char *line) {
   /* Valid arguments must have at least one character beyond
    * the prefix.
    */
@@ -537,7 +539,7 @@ static ArgType classify_arg(const char *line) {
     case HASHCODE_MATCH_ARGUMENT:
       return (ArgType)argument_letter;
     default:
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "Unrecognized argument: %s in the argument file.\n", line);
       exit(1);
       return NO_ARGUMENT_MATCH;
@@ -558,7 +560,8 @@ static ArgType classify_arg(const char *line) {
  * NB: If the associated_value is to be used beyond this function,
  * it must be copied.
  */
-void process_argument(char arg_letter, const char *associated_value) {
+void process_argument(StateInfo *globals, char arg_letter,
+                      const char *associated_value) {
   /* Provide an alias for associated_value because it will
    * often represent a file name.
    */
@@ -567,64 +570,64 @@ void process_argument(char arg_letter, const char *associated_value) {
   switch (arg_letter) {
   case WRITE_TO_OUTPUT_FILE_ARGUMENT:
   case APPEND_TO_OUTPUT_FILE_ARGUMENT:
-    if (GlobalState.ECO_level > 0) {
-      fprintf(GlobalState.logfile, "-%c conflicts with -E\n", arg_letter);
-    } else if (GlobalState.games_per_file > 0) {
-      fprintf(GlobalState.logfile, "-%c conflicts with -#\n", arg_letter);
-    } else if (GlobalState.output_filename != NULL) {
-      fprintf(GlobalState.logfile,
+    if (globals->ECO_level > 0) {
+      fprintf(globals->logfile, "-%c conflicts with -E\n", arg_letter);
+    } else if (globals->games_per_file > 0) {
+      fprintf(globals->logfile, "-%c conflicts with -#\n", arg_letter);
+    } else if (globals->output_filename != NULL) {
+      fprintf(globals->logfile,
               "-%c: File %s has already been selected for output.\n",
-              arg_letter, GlobalState.output_filename);
+              arg_letter, globals->output_filename);
       exit(1);
     } else if (*filename == '\0') {
-      fprintf(GlobalState.logfile, "Usage: -%cfilename.\n", arg_letter);
+      fprintf(globals->logfile, "Usage: -%cfilename.\n", arg_letter);
       exit(1);
     } else {
-      if (GlobalState.outputfile != NULL && GlobalState.outputfile != stdout) {
-        (void)fclose(GlobalState.outputfile);
+      if (globals->outputfile != NULL && globals->outputfile != stdout) {
+        (void)fclose(globals->outputfile);
       }
       if (arg_letter == WRITE_TO_OUTPUT_FILE_ARGUMENT) {
-        GlobalState.outputfile = must_open_file(filename, "w");
+        globals->outputfile = must_open_file(globals, filename, "w");
       } else {
-        GlobalState.outputfile = must_open_file(filename, "a");
+        globals->outputfile = must_open_file(globals, filename, "a");
       }
-      GlobalState.output_filename = filename;
+      globals->output_filename = filename;
     }
     break;
   case WRITE_TO_LOG_FILE_ARGUMENT:
   case APPEND_TO_LOG_FILE_ARGUMENT:
     /* Take precautions against multiple log files. */
-    if ((GlobalState.logfile != stderr) && (GlobalState.logfile != NULL)) {
-      (void)fclose(GlobalState.logfile);
+    if ((globals->logfile != stderr) && (globals->logfile != NULL)) {
+      (void)fclose(globals->logfile);
     }
     if (arg_letter == WRITE_TO_LOG_FILE_ARGUMENT) {
-      GlobalState.logfile = fopen(filename, "w");
+      globals->logfile = fopen(filename, "w");
     } else {
-      GlobalState.logfile = fopen(filename, "a");
+      globals->logfile = fopen(filename, "a");
     }
-    if (GlobalState.logfile == NULL) {
+    if (globals->logfile == NULL) {
       fprintf(stderr, "Unable to open %s for writing.\n", filename);
-      GlobalState.logfile = stderr;
+      globals->logfile = stderr;
     }
     break;
   case DUPLICATES_FILE_ARGUMENT:
     if (*filename == '\0') {
-      fprintf(GlobalState.logfile, "Usage: -%cfilename.\n", arg_letter);
+      fprintf(globals->logfile, "Usage: -%cfilename.\n", arg_letter);
       exit(1);
-    } else if (GlobalState.suppress_duplicates) {
-      fprintf(GlobalState.logfile, "-%c clashes with the -%c flag.\n",
-              arg_letter, DONT_KEEP_DUPLICATES_ARGUMENT);
+    } else if (globals->suppress_duplicates) {
+      fprintf(globals->logfile, "-%c clashes with the -%c flag.\n", arg_letter,
+              DONT_KEEP_DUPLICATES_ARGUMENT);
       exit(1);
     } else {
-      GlobalState.duplicate_file = must_open_file(filename, "w");
+      globals->duplicate_file = must_open_file(globals, filename, "w");
     }
     break;
   case USE_ECO_FILE_ARGUMENT:
-    GlobalState.add_ECO = true;
+    globals->add_ECO = true;
     if (*filename != '\0') {
-      GlobalState.eco_file = copy_string(filename);
+      globals->eco_file = copy_string(filename);
     } else if ((filename = getenv("ECO_FILE")) != NULL) {
-      GlobalState.eco_file = filename;
+      globals->eco_file = filename;
     } else {
       /* Use the default which is already set up. */
     }
@@ -633,25 +636,24 @@ void process_argument(char arg_letter, const char *associated_value) {
   case ECO_OUTPUT_LEVEL_ARGUMENT: {
     unsigned level;
 
-    if (GlobalState.output_filename != NULL) {
-      fprintf(GlobalState.logfile,
+    if (globals->output_filename != NULL) {
+      fprintf(globals->logfile,
               "-%c: File %s has already been selected for output.\n",
-              arg_letter, GlobalState.output_filename);
+              arg_letter, globals->output_filename);
       exit(1);
-    } else if (GlobalState.games_per_file > 0) {
-      fprintf(GlobalState.logfile, "-%c conflicts with -#.\n", arg_letter);
+    } else if (globals->games_per_file > 0) {
+      fprintf(globals->logfile, "-%c conflicts with -#.\n", arg_letter);
       exit(1);
     } else if (sscanf(associated_value, "%u", &level) != 1) {
-      fprintf(GlobalState.logfile,
-              "-%c requires a number attached, e.g., -%c1.\n", arg_letter,
-              arg_letter);
+      fprintf(globals->logfile, "-%c requires a number attached, e.g., -%c1.\n",
+              arg_letter, arg_letter);
       exit(1);
     } else if ((level < MIN_ECO_LEVEL) || (level > MAX_ECO_LEVEL)) {
-      fprintf(GlobalState.logfile, "-%c level should be between %u and %u.\n",
+      fprintf(globals->logfile, "-%c level should be between %u and %u.\n",
               MIN_ECO_LEVEL, MAX_ECO_LEVEL, arg_letter);
       exit(1);
     } else {
-      GlobalState.ECO_level = level;
+      globals->ECO_level = level;
     }
   } break;
   case CHECK_FILE_ARGUMENT:
@@ -665,21 +667,21 @@ void process_argument(char arg_letter, const char *associated_value) {
 
       if ((len > strlen(suffix)) &&
           (stringcompare(&filename[len - strlen(suffix)], suffix) == 0)) {
-        add_filename_to_source_list(filename, CHECKFILE);
+        add_filename_to_source_list(globals, filename, CHECKFILE);
       } else {
-        FILE *fp = must_open_file(filename, "r");
-        add_filename_list_from_file(fp, CHECKFILE);
+        FILE *fp = must_open_file(globals, filename, "r");
+        add_filename_list_from_file(globals, fp, CHECKFILE);
         (void)fclose(fp);
       }
     }
     break;
   case FILE_OF_FILES_ARGUMENT:
     if (*filename != '\0') {
-      FILE *fp = must_open_file(filename, "r");
-      add_filename_list_from_file(fp, NORMALFILE);
+      FILE *fp = must_open_file(globals, filename, "r");
+      add_filename_list_from_file(globals, fp, NORMALFILE);
       (void)fclose(fp);
     } else {
-      fprintf(GlobalState.logfile, "Filename expected with -%c\n", arg_letter);
+      fprintf(globals->logfile, "Filename expected with -%c\n", arg_letter);
     }
     break;
   case MOVE_BOUNDS_ARGUMENT:
@@ -704,18 +706,17 @@ void process_argument(char arg_letter, const char *associated_value) {
       break;
     default:
       if (!isdigit((int)*bound)) {
-        fprintf(GlobalState.logfile, "-%c must be followed by e, l, or u.\n",
+        fprintf(globals->logfile, "-%c must be followed by e, l, or u.\n",
                 arg_letter);
         Ok = false;
       }
       break;
     }
     if (Ok && (sscanf(bound, "%u", &number) == 1)) {
-      Ok = set_move_bounds(arg_letter, which, number);
+      Ok = set_move_bounds(globals, arg_letter, which, number);
     } else {
-      fprintf(GlobalState.logfile,
-              "-%c should be in the form -%c[elu]number.\n", arg_letter,
-              arg_letter);
+      fprintf(globals->logfile, "-%c should be in the form -%c[elu]number.\n",
+              arg_letter, arg_letter);
       Ok = false;
     }
     if (!Ok) {
@@ -723,30 +724,30 @@ void process_argument(char arg_letter, const char *associated_value) {
     }
   } break;
   case GAMES_PER_FILE_ARGUMENT:
-    if (GlobalState.ECO_level > 0) {
-      fprintf(GlobalState.logfile, "-%c conflicts with -E.\n", arg_letter);
+    if (globals->ECO_level > 0) {
+      fprintf(globals->logfile, "-%c conflicts with -E.\n", arg_letter);
       exit(1);
-    } else if (GlobalState.output_filename != NULL) {
-      fprintf(GlobalState.logfile,
+    } else if (globals->output_filename != NULL) {
+      fprintf(globals->logfile,
               "-%c: File %s has already been selected for output.\n",
-              arg_letter, GlobalState.output_filename);
+              arg_letter, globals->output_filename);
       exit(1);
     } else {
       if (strchr(associated_value, ',') != NULL) {
         unsigned games, file_number;
         if (sscanf(associated_value, "%u,%u", &games, &file_number) == 2) {
-          GlobalState.games_per_file = games;
-          GlobalState.next_file_number = file_number;
+          globals->games_per_file = games;
+          globals->next_file_number = file_number;
         } else {
-          fprintf(GlobalState.logfile,
+          fprintf(globals->logfile,
                   "-%c should be followed by either one or two unsigned "
                   "integers.\n",
                   arg_letter);
           exit(1);
         }
-      } else if (sscanf(associated_value, "%u", &GlobalState.games_per_file) !=
+      } else if (sscanf(associated_value, "%u", &globals->games_per_file) !=
                  1) {
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "-%c should be followed by an unsigned integer.\n", arg_letter);
         exit(1);
       } else {
@@ -757,104 +758,104 @@ void process_argument(char arg_letter, const char *associated_value) {
   case FILE_OF_ARGUMENTS_ARGUMENT:
     if (*filename != '\0') {
       /* @@@ Potentially recursive call. Is this safe? */
-      read_args_file(filename);
+      read_args_file(globals, filename);
     } else {
-      fprintf(GlobalState.logfile, "Usage: -%cfilename.\n", arg_letter);
+      fprintf(globals->logfile, "Usage: -%cfilename.\n", arg_letter);
     }
     break;
   case NON_MATCHING_GAMES_ARGUMENT:
     if (*filename != '\0') {
-      if (GlobalState.non_matching_file != NULL &&
-          GlobalState.non_matching_file != stdout) {
-        (void)fclose(GlobalState.non_matching_file);
+      if (globals->non_matching_file != NULL &&
+          globals->non_matching_file != stdout) {
+        (void)fclose(globals->non_matching_file);
       }
       if (strcmp(filename, "stdout") == 0) {
-        GlobalState.non_matching_file = stdout;
+        globals->non_matching_file = stdout;
       } else {
-        GlobalState.non_matching_file = must_open_file(filename, "w");
+        globals->non_matching_file = must_open_file(globals, filename, "w");
       }
     } else {
-      fprintf(GlobalState.logfile, "Usage: -%cfilename.\n", arg_letter);
+      fprintf(globals->logfile, "Usage: -%cfilename.\n", arg_letter);
       exit(1);
     }
     break;
   case TAG_EXTRACTION_ARGUMENT:
     /* A single tag extraction criterion. */
-    extract_tag_argument(associated_value, true);
+    extract_tag_argument(globals, associated_value, true);
     break;
   case LINE_WIDTH_ARGUMENT: { /* Specify an output line width. */
     unsigned length;
 
     if (sscanf(associated_value, "%u", &length) > 0) {
-      set_output_line_length(length);
+      set_output_line_length(globals, length);
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "-%c should be followed by an unsigned integer.\n", arg_letter);
       exit(1);
     }
   } break;
   case HELP_ARGUMENT:
-    usage_and_exit();
+    usage_and_exit(globals);
     break;
   case OUTPUT_FORMAT_ARGUMENT:
     /* Whether to use the source form of moves or
      * rewrite them into another format.
      */
     {
-      OutputFormat format = which_output_format(associated_value);
+      OutputFormat format = which_output_format(globals, associated_value);
       if (format == UCI) {
         /* Rewrite the game in a format suitable for input to
          * a UCI-compatible engine.
          * This is actually LALG but involves adjusting a lot of
          * the other statuses, too.
          */
-        GlobalState.keep_NAGs = false;
-        GlobalState.keep_comments = false;
-        GlobalState.keep_move_numbers = false;
-        GlobalState.keep_checks = false;
-        GlobalState.keep_variations = false;
+        globals->keep_NAGs = false;
+        globals->keep_comments = false;
+        globals->keep_move_numbers = false;
+        globals->keep_checks = false;
+        globals->keep_variations = false;
         /* @@@ Warning: arbitrary value. */
-        set_output_line_length(5000);
+        set_output_line_length(globals, 5000);
       }
-      GlobalState.output_format = format;
+      globals->output_format = format;
     }
     break;
   case SEVEN_TAG_ROSTER_ARGUMENT:
-    if ((GlobalState.tag_output_format == ALL_TAGS ||
-         GlobalState.tag_output_format == SEVEN_TAG_ROSTER) &&
-        !GlobalState.only_output_wanted_tags) {
-      GlobalState.tag_output_format = SEVEN_TAG_ROSTER;
+    if ((globals->tag_output_format == ALL_TAGS ||
+         globals->tag_output_format == SEVEN_TAG_ROSTER) &&
+        !globals->only_output_wanted_tags) {
+      globals->tag_output_format = SEVEN_TAG_ROSTER;
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "-%c clashes with another roster-related argument.\n",
               SEVEN_TAG_ROSTER_ARGUMENT);
       exit(1);
     }
     break;
   case DONT_KEEP_COMMENTS_ARGUMENT:
-    if (GlobalState.keep_only_commented_games) {
-      fprintf(GlobalState.logfile, "-%c clashes with --commented\n",
+    if (globals->keep_only_commented_games) {
+      fprintf(globals->logfile, "-%c clashes with --commented\n",
               DONT_KEEP_COMMENTS_ARGUMENT);
       exit(1);
     } else {
-      GlobalState.keep_comments = false;
+      globals->keep_comments = false;
     }
     break;
   case DONT_KEEP_DUPLICATES_ARGUMENT:
     /* Make sure that this doesn't clash with -d. */
-    if (GlobalState.duplicate_file == NULL) {
-      GlobalState.suppress_duplicates = true;
+    if (globals->duplicate_file == NULL) {
+      globals->suppress_duplicates = true;
     } else {
-      fprintf(GlobalState.logfile, "-%c clashes with -%c flag.\n",
+      fprintf(globals->logfile, "-%c clashes with -%c flag.\n",
               DONT_KEEP_DUPLICATES_ARGUMENT, DUPLICATES_FILE_ARGUMENT);
       exit(1);
     }
     break;
   case DONT_MATCH_PERMUTATIONS_ARGUMENT:
-    GlobalState.match_permutations = false;
+    globals->match_permutations = false;
     break;
   case DONT_KEEP_NAGS_ARGUMENT:
-    GlobalState.keep_NAGs = false;
+    globals->keep_NAGs = false;
     break;
   case OUTPUT_FEN_STRING_ARGUMENT:
     /* Output a FEN string at one or more positions.
@@ -862,112 +863,112 @@ void process_argument(char arg_letter, const char *associated_value) {
      * The FEN string is displayed in a comment.
      */
     if (*associated_value != '\0') {
-      if (!GlobalState.add_FEN_comments) {
-        GlobalState.FEN_comment_pattern = copy_string(associated_value);
+      if (!globals->add_FEN_comments) {
+        globals->FEN_comment_pattern = copy_string(associated_value);
       } else {
-        fprintf(GlobalState.logfile, "-%c%s conflicts with --%s\n",
+        fprintf(globals->logfile, "-%c%s conflicts with --%s\n",
                 OUTPUT_FEN_STRING_ARGUMENT, associated_value, "fencomments");
       }
     }
-    if (GlobalState.add_FEN_comments) {
+    if (globals->add_FEN_comments) {
       /* Already implied. */
-      GlobalState.output_FEN_string = false;
+      globals->output_FEN_string = false;
     } else {
-      GlobalState.output_FEN_string = true;
+      globals->output_FEN_string = true;
     }
     break;
   case CHECK_ONLY_ARGUMENT:
     /* Report errors, but don't convert. */
-    GlobalState.check_only = true;
+    globals->check_only = true;
     break;
   case KEEP_SILENT_ARGUMENT:
     /* Turn off progress reporting
      * and only report the number of games processed.
      */
-    GlobalState.verbosity = 1;
+    globals->verbosity = 1;
     break;
   case USE_SOUNDEX_ARGUMENT:
     /* Use soundex matches for player tags. */
-    GlobalState.use_soundex = true;
+    globals->use_soundex = true;
     break;
   case MATCH_CHECKMATE_ARGUMENT:
     /* Match only games that end in checkmate. */
-    if (GlobalState.match_only_insufficient_material) {
-      fprintf(GlobalState.logfile, "-%c clashes with the --insufficient.\n",
+    if (globals->match_only_insufficient_material) {
+      fprintf(globals->logfile, "-%c clashes with the --insufficient.\n",
               arg_letter);
       exit(1);
-    } else if (GlobalState.match_only_stalemate) {
-      fprintf(GlobalState.logfile, "-%c clashes with the --stalemate.\n",
+    } else if (globals->match_only_stalemate) {
+      fprintf(globals->logfile, "-%c clashes with the --stalemate.\n",
               arg_letter);
       exit(1);
     } else {
-      GlobalState.match_only_checkmate = true;
+      globals->match_only_checkmate = true;
     }
     break;
   case SUPPRESS_ORIGINALS_ARGUMENT:
-    GlobalState.suppress_originals = true;
+    globals->suppress_originals = true;
     break;
   case DONT_KEEP_VARIATIONS_ARGUMENT:
-    if (!GlobalState.split_variants) {
-      GlobalState.keep_variations = false;
+    if (!globals->split_variants) {
+      globals->keep_variations = false;
     } else {
-      fprintf(GlobalState.logfile,
-              "-%c clashes with the --splitvariants flag.\n", arg_letter);
+      fprintf(globals->logfile, "-%c clashes with the --splitvariants flag.\n",
+              arg_letter);
       exit(1);
     }
     break;
   case USE_VIRTUAL_HASH_TABLE_ARGUMENT:
-    GlobalState.use_virtual_hash_table = true;
+    globals->use_virtual_hash_table = true;
     break;
 
   case TAGS_ARGUMENT:
     if (*filename != '\0') {
-      read_tag_file(filename, true);
+      read_tag_file(globals, filename, true);
     }
     break;
   case TAG_ROSTER_ARGUMENT:
     if (*filename != '\0') {
-      read_tag_roster_file(filename);
+      read_tag_roster_file(globals, filename);
     }
     break;
   case MOVES_ARGUMENT:
     if (*filename != '\0') {
       /* Where the list of variations of interest are kept. */
-      FILE *variation_file = must_open_file(filename, "r");
+      FILE *variation_file = must_open_file(globals, filename, "r");
       /* We wish to search for particular variations. */
-      add_textual_variations_from_file(variation_file);
+      add_textual_variations_from_file(globals, variation_file);
       fclose(variation_file);
     }
     break;
   case POSITIONS_ARGUMENT:
     if (*filename != '\0') {
-      FILE *variation_file = must_open_file(filename, "r");
+      FILE *variation_file = must_open_file(globals, filename, "r");
       /* We wish to search for positional variations. */
-      add_positional_variations_from_file(variation_file);
+      add_positional_variations_from_file(globals, variation_file);
       fclose(variation_file);
     }
     break;
   case ENDINGS_ARGUMENT:
   case ENDINGS_COLOURED_ARGUMENT:
     if (*filename != '\0') {
-      if (!build_endings(filename, arg_letter == ENDINGS_ARGUMENT)) {
+      if (!build_endings(globals, filename, arg_letter == ENDINGS_ARGUMENT)) {
         exit(1);
       }
     }
     break;
   case HASHCODE_MATCH_ARGUMENT:
-    if (save_polyglot_hashcode(associated_value)) {
-      GlobalState.positional_variations = true;
+    if (save_polyglot_hashcode(globals, associated_value)) {
+      globals->positional_variations = true;
     } else {
       fprintf(
-          GlobalState.logfile,
+          globals->logfile,
           "-%c must be followed by a hexadecimal hash value rather than %s.\n",
           arg_letter, associated_value);
       exit(1);
     }
     break;
   default:
-    fprintf(GlobalState.logfile, "Unrecognized argument -%c\n", arg_letter);
+    fprintf(globals->logfile, "Unrecognized argument -%c\n", arg_letter);
   }
 }
 
@@ -977,62 +978,62 @@ void process_argument(char arg_letter, const char *associated_value) {
  * The associated_value will only be required by some arguments.
  * Return whether one or both were required.
  */
-int process_long_form_argument(const char *argument,
+int process_long_form_argument(StateInfo *globals, const char *argument,
                                const char *associated_value) {
   if (stringcompare(argument, "addfencastling") == 0) {
-    GlobalState.add_fen_castling = true;
+    globals->add_fen_castling = true;
     return 1;
   } else if (stringcompare(argument, "addhashcode") == 0) {
-    GlobalState.add_hashcode_tag = true;
+    globals->add_hashcode_tag = true;
     return 1;
   } else if (stringcompare(argument, "addlabeltag") == 0) {
-    GlobalState.add_matchlabel_tag = true;
+    globals->add_matchlabel_tag = true;
     return 1;
   } else if (stringcompare(argument, "addmatchtag") == 0) {
-    GlobalState.add_match_tag = true;
+    globals->add_match_tag = true;
     return 1;
   } else if (stringcompare(argument, "allownullmoves") == 0) {
-    GlobalState.allow_null_moves = true;
+    globals->allow_null_moves = true;
     return 1;
   } else if (stringcompare(argument, "append") == 0) {
-    process_argument(APPEND_TO_OUTPUT_FILE_ARGUMENT, associated_value);
+    process_argument(globals, APPEND_TO_OUTPUT_FILE_ARGUMENT, associated_value);
     return 2;
   } else if (stringcompare(argument, "btm") == 0) {
-    if (GlobalState.whose_move == EITHER_TO_MOVE) {
-      GlobalState.whose_move = BLACK_TO_MOVE;
+    if (globals->whose_move == EITHER_TO_MOVE) {
+      globals->whose_move = BLACK_TO_MOVE;
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "%s conflicts with previous setting of white to move.\n",
               argument);
     }
     return 1;
   } else if (stringcompare(argument, "checkfile") == 0) {
-    process_argument(CHECK_FILE_ARGUMENT, associated_value);
+    process_argument(globals, CHECK_FILE_ARGUMENT, associated_value);
     return 2;
   } else if (stringcompare(argument, "checkmate") == 0) {
-    process_argument(MATCH_CHECKMATE_ARGUMENT, "");
+    process_argument(globals, MATCH_CHECKMATE_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "commented") == 0) {
-    if (!GlobalState.keep_comments) {
-      fprintf(GlobalState.logfile, "--%s clashes with -%c\n", argument,
+    if (!globals->keep_comments) {
+      fprintf(globals->logfile, "--%s clashes with -%c\n", argument,
               DONT_KEEP_COMMENTS_ARGUMENT);
       exit(1);
     } else {
-      GlobalState.keep_only_commented_games = true;
+      globals->keep_only_commented_games = true;
     }
     return 1;
   } else if (stringcompare(argument, "commentlines") == 0) {
-    GlobalState.separate_comment_lines = true;
+    globals->separate_comment_lines = true;
     return 1;
   } else if (stringcompare(argument, "deletesamesetup") == 0) {
-    GlobalState.delete_same_setup = true;
+    globals->delete_same_setup = true;
     return 1;
   } else if (stringcompare(argument, "detag") == 0) {
     /* Save the tag to be dropped. */
     if (associated_value != NULL) {
-      suppress_tag(associated_value);
+      suppress_tag(globals, associated_value);
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a tag name following it.\n",
+      fprintf(globals->logfile, "--%s requires a tag name following it.\n",
               argument);
       exit(1);
     }
@@ -1040,9 +1041,9 @@ int process_long_form_argument(const char *argument,
   } else if (stringcompare(argument, "dropbefore") == 0) {
     /* Save the comment string to be matched. */
     if (associated_value != NULL) {
-      GlobalState.drop_comment_pattern = copy_string(associated_value);
+      globals->drop_comment_pattern = copy_string(associated_value);
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a string following it.\n",
+      fprintf(globals->logfile, "--%s requires a string following it.\n",
               argument);
       exit(1);
     }
@@ -1052,62 +1053,62 @@ int process_long_form_argument(const char *argument,
     int number = 0;
 
     if (sscanf(associated_value, "%d", &number) == 1) {
-      GlobalState.drop_ply_number = number;
+      globals->drop_ply_number = number;
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a number following it.\n",
+      fprintf(globals->logfile, "--%s requires a number following it.\n",
               argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "duplicates") == 0) {
-    process_argument(DUPLICATES_FILE_ARGUMENT, associated_value);
+    process_argument(globals, DUPLICATES_FILE_ARGUMENT, associated_value);
     return 2;
   } else if (stringcompare(argument, "evaluation") == 0) {
     /* Output an evaluation is required with each move. */
-    GlobalState.output_evaluation = true;
+    globals->output_evaluation = true;
     return 1;
   } else if (stringcompare(argument, "fencomments") == 0) {
-    if (GlobalState.FEN_comment_pattern == NULL) {
+    if (globals->FEN_comment_pattern == NULL) {
       /* Output a FEN comment after each move. */
-      GlobalState.add_FEN_comments = true;
+      globals->add_FEN_comments = true;
       /* Turn off any separate setting of output_FEN_comment. */
-      GlobalState.output_FEN_string = false;
+      globals->output_FEN_string = false;
     } else {
-      fprintf(GlobalState.logfile, "--%s conflicts with -%cpattern", argument,
+      fprintf(globals->logfile, "--%s conflicts with -%cpattern", argument,
               OUTPUT_FEN_STRING_ARGUMENT);
     }
     return 1;
   } else if (stringcompare(argument, "fenpattern") == 0) {
     if (*associated_value != '\0') {
-      add_fen_pattern(associated_value, false, "");
-      GlobalState.positional_variations = true;
+      add_fen_pattern(globals, associated_value, false, "");
+      globals->positional_variations = true;
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a pattern following it.\n",
+      fprintf(globals->logfile, "--%s requires a pattern following it.\n",
               argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "fenpatterni") == 0) {
     if (*associated_value != '\0') {
-      add_fen_pattern(associated_value, true, "");
-      GlobalState.positional_variations = true;
+      add_fen_pattern(globals, associated_value, true, "");
+      globals->positional_variations = true;
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a pattern following it.\n",
+      fprintf(globals->logfile, "--%s requires a pattern following it.\n",
               argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "fifty") == 0 ||
              stringcompare(argument, "50") == 0) {
-    if (GlobalState.check_for_N_move_rule == 0) {
-      GlobalState.check_for_N_move_rule = 50;
+    if (globals->check_for_N_move_rule == 0) {
+      globals->check_for_N_move_rule = 50;
       return 1;
-    } else if (GlobalState.check_for_N_move_rule == 50) {
+    } else if (globals->check_for_N_move_rule == 50) {
       return 1;
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "--%s conflicts with a previous setting of %u.\n", argument,
-              GlobalState.check_for_N_move_rule);
+              globals->check_for_N_move_rule);
       exit(1);
     }
   } else if (stringcompare(argument, "firstgame") == 0) {
@@ -1116,91 +1117,91 @@ int process_long_form_argument(const char *argument,
 
     if (sscanf(associated_value, "%lu", &number) == 1) {
       if (number >= 1) {
-        if (number <= GlobalState.game_limit) {
-          GlobalState.first_game_number = number;
+        if (number <= globals->game_limit) {
+          globals->first_game_number = number;
         } else {
-          fprintf(GlobalState.logfile,
+          fprintf(globals->logfile,
                   "--%s %lu is incompatible with --gamelimit %lu.\n", argument,
-                  number, GlobalState.game_limit);
+                  number, globals->game_limit);
           exit(1);
         }
       }
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a number following it.\n",
+      fprintf(globals->logfile, "--%s requires a number following it.\n",
               argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "fixresulttags") == 0) {
-    GlobalState.fix_result_tags = true;
+    globals->fix_result_tags = true;
     return 1;
   } else if (stringcompare(argument, "fixtagstrings") == 0) {
-    GlobalState.fix_tag_strings = true;
+    globals->fix_tag_strings = true;
     return 1;
   } else if (stringcompare(argument, "fuzzydepth") == 0) {
     /* Extract the depth. */
     unsigned depth = 0;
 
     if (sscanf(associated_value, "%u", &depth) == 1) {
-      GlobalState.fuzzy_match_duplicates = true;
-      GlobalState.fuzzy_match_depth = depth;
+      globals->fuzzy_match_duplicates = true;
+      globals->fuzzy_match_depth = depth;
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "--%s requires a positive number following it.\n", argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "hashcomments") == 0) {
     /* Output a hashcode comment after each move. */
-    GlobalState.add_hashcode_comments = true;
+    globals->add_hashcode_comments = true;
     return 1;
   } else if (stringcompare(argument, "help") == 0) {
-    process_argument(HELP_ARGUMENT, "");
+    process_argument(globals, HELP_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "insufficient") == 0) {
-    if (GlobalState.match_only_checkmate) {
-      fprintf(GlobalState.logfile, "--%s clashes with the --checkmate.\n",
+    if (globals->match_only_checkmate) {
+      fprintf(globals->logfile, "--%s clashes with the --checkmate.\n",
               argument);
       exit(1);
-    } else if (GlobalState.match_only_stalemate) {
-      fprintf(GlobalState.logfile, "--%s clashes with the --stalemate.\n",
+    } else if (globals->match_only_stalemate) {
+      fprintf(globals->logfile, "--%s clashes with the --stalemate.\n",
               argument);
       exit(1);
     } else {
-      GlobalState.match_only_insufficient_material = true;
+      globals->match_only_insufficient_material = true;
     }
     return 1;
   } else if (stringcompare(argument, "json") == 0) {
-    GlobalState.json_format = true;
+    globals->json_format = true;
     return 1;
   } else if (stringcompare(argument, "tsv") == 0) {
-    GlobalState.tsv_format = true;
+    globals->tsv_format = true;
     return 1;
   } else if (stringcompare(argument, "keepbroken") == 0) {
-    GlobalState.keep_broken_games = true;
+    globals->keep_broken_games = true;
     return 1;
   } else if (stringcompare(argument, "lichesscommentfix") == 0) {
-    GlobalState.lichess_comment_fix = true;
+    globals->lichess_comment_fix = true;
     return 1;
   } else if (stringcompare(argument, "linelength") == 0) {
-    process_argument(LINE_WIDTH_ARGUMENT, associated_value);
+    process_argument(globals, LINE_WIDTH_ARGUMENT, associated_value);
     return 2;
   } else if (stringcompare(argument, "linenumbers") == 0) {
     /* Save the marker string to be output. */
     if (associated_value != NULL) {
-      GlobalState.line_number_marker = copy_string(associated_value);
+      globals->line_number_marker = copy_string(associated_value);
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a string following it.\n",
+      fprintf(globals->logfile, "--%s requires a string following it.\n",
               argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "markmatches") == 0) {
     if (*associated_value != '\0') {
-      GlobalState.add_position_match_comments = true;
-      GlobalState.position_match_comment = copy_string(associated_value);
+      globals->add_position_match_comments = true;
+      globals->position_match_comment = copy_string(associated_value);
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "--%s requires a comment string following it.\n", argument);
       exit(1);
     }
@@ -1211,40 +1212,42 @@ int process_long_form_argument(const char *argument,
     /* Extract the limit. */
     if (sscanf(associated_value, "%u", &limit) == 1) {
       if (limit > 0) {
-        if (limit >= GlobalState.depth_of_positional_search) {
-          GlobalState.depth_of_positional_search = limit;
+        if (limit >= globals->depth_of_positional_search) {
+          globals->depth_of_positional_search = limit;
         } else {
-          fprintf(GlobalState.logfile,
+          fprintf(globals->logfile,
                   "--%s of %u conflicts with existing higher limit of %u\n",
-                  argument, limit, GlobalState.depth_of_positional_search);
+                  argument, limit, globals->depth_of_positional_search);
           exit(1);
         }
       } else {
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "--%s requires a number greater than or equal to zero.\n",
                 argument);
         exit(1);
       }
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a number following it.\n",
+      fprintf(globals->logfile, "--%s requires a number following it.\n",
               argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "materialy") == 0) {
     if (*associated_value != '\0') {
-      (void)process_material_description(associated_value, false, false);
+      (void)process_material_description(globals, associated_value, false,
+                                         false);
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "--%s requires a string of material following it.\n", argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "materialz") == 0) {
     if (*associated_value != '\0') {
-      (void)process_material_description(associated_value, true, false);
+      (void)process_material_description(globals, associated_value, true,
+                                         false);
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "--%s requires a string of material following it.\n", argument);
       exit(1);
     }
@@ -1254,9 +1257,9 @@ int process_long_form_argument(const char *argument,
     unsigned number = 0;
 
     if (sscanf(associated_value, "%u", &number) == 1) {
-      set_move_bounds(MOVE_BOUNDS_ARGUMENT, 'l', number);
+      set_move_bounds(globals, MOVE_BOUNDS_ARGUMENT, 'l', number);
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a number following it.\n",
+      fprintf(globals->logfile, "--%s requires a number following it.\n",
               argument);
       exit(1);
     }
@@ -1266,16 +1269,16 @@ int process_long_form_argument(const char *argument,
     unsigned long number = 0;
 
     if (sscanf(associated_value, "%lu", &number) == 1) {
-      if (number >= GlobalState.first_game_number) {
-        GlobalState.game_limit = number;
+      if (number >= globals->first_game_number) {
+        globals->game_limit = number;
       } else {
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "--%s %lu is incompatible with --firstgame %lu.\n", argument,
-                number, GlobalState.first_game_number);
+                number, globals->first_game_number);
         exit(1);
       }
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a number following it.\n",
+      fprintf(globals->logfile, "--%s requires a number following it.\n",
               argument);
       exit(1);
     }
@@ -1285,9 +1288,9 @@ int process_long_form_argument(const char *argument,
     unsigned number = 0;
 
     if (sscanf(associated_value, "%u", &number) == 1) {
-      set_move_bounds(MOVE_BOUNDS_ARGUMENT, 'u', number);
+      set_move_bounds(globals, MOVE_BOUNDS_ARGUMENT, 'u', number);
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a number following it.\n",
+      fprintf(globals->logfile, "--%s requires a number following it.\n",
               argument);
       exit(1);
     }
@@ -1297,9 +1300,9 @@ int process_long_form_argument(const char *argument,
     unsigned number = 0;
 
     if (sscanf(associated_value, "%u", &number) == 1) {
-      set_move_bounds(PLY_BOUNDS_ARGUMENT, 'l', number);
+      set_move_bounds(globals, PLY_BOUNDS_ARGUMENT, 'l', number);
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a number following it.\n",
+      fprintf(globals->logfile, "--%s requires a number following it.\n",
               argument);
       exit(1);
     }
@@ -1309,77 +1312,77 @@ int process_long_form_argument(const char *argument,
     unsigned number = 0;
 
     if (sscanf(associated_value, "%u", &number) == 1) {
-      set_move_bounds(PLY_BOUNDS_ARGUMENT, 'u', number);
+      set_move_bounds(globals, PLY_BOUNDS_ARGUMENT, 'u', number);
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a number following it.\n",
+      fprintf(globals->logfile, "--%s requires a number following it.\n",
               argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "nestedcomments") == 0) {
-    GlobalState.allow_nested_comments = true;
+    globals->allow_nested_comments = true;
     return 1;
   } else if (stringcompare(argument, "nobadresults") == 0) {
-    GlobalState.reject_inconsistent_results = true;
+    globals->reject_inconsistent_results = true;
     return 1;
   } else if (stringcompare(argument, "nochecks") == 0) {
-    GlobalState.keep_checks = false;
+    globals->keep_checks = false;
     return 1;
   } else if (stringcompare(argument, "nocomments") == 0) {
-    process_argument(DONT_KEEP_COMMENTS_ARGUMENT, "");
+    process_argument(globals, DONT_KEEP_COMMENTS_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "noduplicates") == 0) {
-    process_argument(DONT_KEEP_DUPLICATES_ARGUMENT, "");
+    process_argument(globals, DONT_KEEP_DUPLICATES_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "nofauxep") == 0) {
-    GlobalState.suppress_redundant_ep_info = true;
+    globals->suppress_redundant_ep_info = true;
     return 1;
   } else if (stringcompare(argument, "nomovenumbers") == 0) {
-    GlobalState.keep_move_numbers = false;
+    globals->keep_move_numbers = false;
     return 1;
   } else if (stringcompare(argument, "nonags") == 0) {
-    process_argument(DONT_KEEP_NAGS_ARGUMENT, "");
+    process_argument(globals, DONT_KEEP_NAGS_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "nosetuptags") == 0) {
-    if (GlobalState.setup_status != SETUP_TAG_OK) {
-      fprintf(GlobalState.logfile, "--%s conflicts with --onlysetuptagso\n",
+    if (globals->setup_status != SETUP_TAG_OK) {
+      fprintf(globals->logfile, "--%s conflicts with --onlysetuptagso\n",
               argument);
       exit(1);
     }
-    GlobalState.setup_status = NO_SETUP_TAG;
+    globals->setup_status = NO_SETUP_TAG;
     return 1;
   } else if (stringcompare(argument, "noresults") == 0) {
-    GlobalState.keep_results = false;
+    globals->keep_results = false;
     return 1;
   } else if (stringcompare(argument, "notags") == 0) {
-    if (GlobalState.tag_output_format == ALL_TAGS ||
-        GlobalState.tag_output_format == NO_TAGS) {
-      GlobalState.tag_output_format = NO_TAGS;
+    if (globals->tag_output_format == ALL_TAGS ||
+        globals->tag_output_format == NO_TAGS) {
+      globals->tag_output_format = NO_TAGS;
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "--notags clashes with another roster-related argument.\n");
       exit(1);
     }
     return 1;
   } else if (stringcompare(argument, "nounique") == 0) {
-    process_argument(SUPPRESS_ORIGINALS_ARGUMENT, "");
+    process_argument(globals, SUPPRESS_ORIGINALS_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "novars") == 0) {
-    process_argument(DONT_KEEP_VARIATIONS_ARGUMENT, "");
+    process_argument(globals, DONT_KEEP_VARIATIONS_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "onlysetuptags") == 0) {
-    if (GlobalState.setup_status != SETUP_TAG_OK) {
-      fprintf(GlobalState.logfile, "--%s conflicts with --nosetuptags\n",
+    if (globals->setup_status != SETUP_TAG_OK) {
+      fprintf(globals->logfile, "--%s conflicts with --nosetuptags\n",
               argument);
       exit(1);
     }
-    GlobalState.setup_status = SETUP_TAG_ONLY;
+    globals->setup_status = SETUP_TAG_ONLY;
     return 1;
   } else if (stringcompare(argument, "output") == 0) {
-    process_argument(WRITE_TO_OUTPUT_FILE_ARGUMENT, associated_value);
+    process_argument(globals, WRITE_TO_OUTPUT_FILE_ARGUMENT, associated_value);
     return 2;
   } else if (stringcompare(argument, "plycount") == 0) {
-    GlobalState.output_plycount = true;
+    globals->output_plycount = true;
     return 1;
   } else if (stringcompare(argument, "plylimit") == 0) {
     int limit = 0;
@@ -1387,15 +1390,15 @@ int process_long_form_argument(const char *argument,
     /* Extract the limit. */
     if (sscanf(associated_value, "%d", &limit) == 1) {
       if (limit >= 0) {
-        GlobalState.output_ply_limit = limit;
+        globals->output_ply_limit = limit;
       } else {
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "--%s requires a number greater than or equal to zero.\n",
                 argument);
         exit(1);
       }
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a number following it.\n",
+      fprintf(globals->logfile, "--%s requires a number following it.\n",
               argument);
       exit(1);
     }
@@ -1406,90 +1409,92 @@ int process_long_form_argument(const char *argument,
     /* Extract the threshold. */
     if (sscanf(associated_value, "%d", &threshold) == 1) {
       if (threshold >= 0) {
-        GlobalState.quiescence_threshold = threshold;
+        globals->quiescence_threshold = threshold;
       } else {
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "--%s requires a number greater than or equal to zero.\n",
                 argument);
         exit(1);
       }
     } else {
-      fprintf(GlobalState.logfile, "--%s requires a number following it.\n",
+      fprintf(globals->logfile, "--%s requires a number following it.\n",
               argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "quiet") == 0) {
     /* No progress output at all. */
-    GlobalState.verbosity = 0;
+    globals->verbosity = 0;
     return 1;
   } else if (stringcompare(argument, "repetition") == 0) {
-    if (GlobalState.check_for_repetition == 0) {
-      GlobalState.check_for_repetition = 3;
+    if (globals->check_for_repetition == 0) {
+      globals->check_for_repetition = 3;
       return 1;
-    } else if (GlobalState.check_for_repetition == 3) {
+    } else if (globals->check_for_repetition == 3) {
       /* Duplicate. */
       return 1;
     } else {
-      fprintf(GlobalState.logfile, "--%s conflicts with a previous setting.\n",
+      fprintf(globals->logfile, "--%s conflicts with a previous setting.\n",
               argument);
       exit(1);
     }
   } else if (stringcompare(argument, "repetition5") == 0) {
-    if (GlobalState.check_for_repetition == 0) {
-      GlobalState.check_for_repetition = 5;
+    if (globals->check_for_repetition == 0) {
+      globals->check_for_repetition = 5;
       return 1;
-    } else if (GlobalState.check_for_repetition == 5) {
+    } else if (globals->check_for_repetition == 5) {
       /* Duplicate. */
       return 1;
     } else {
-      fprintf(GlobalState.logfile, "--%s clashes with a different setting.\n",
+      fprintf(globals->logfile, "--%s clashes with a different setting.\n",
               argument);
       exit(1);
     }
   } else if (stringcompare(argument, "selectonly") == 0) {
     /* Extract the selected match numbers from a list. */
-    game_number *number_list = extract_game_number_list(associated_value);
+    game_number *number_list =
+        extract_game_number_list(globals, associated_value);
     if (number_list != NULL) {
-      GlobalState.matching_game_numbers = number_list;
-      GlobalState.next_game_number_to_output = number_list;
+      globals->matching_game_numbers = number_list;
+      globals->next_game_number_to_output = number_list;
     } else {
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "seven") == 0) {
-    process_argument(SEVEN_TAG_ROSTER_ARGUMENT, "");
+    process_argument(globals, SEVEN_TAG_ROSTER_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "seventyfive") == 0 ||
              stringcompare(argument, "75") == 0) {
-    if (GlobalState.check_for_N_move_rule == 0) {
-      GlobalState.check_for_N_move_rule = 75;
+    if (globals->check_for_N_move_rule == 0) {
+      globals->check_for_N_move_rule = 75;
       return 1;
-    } else if (GlobalState.check_for_N_move_rule == 75) {
+    } else if (globals->check_for_N_move_rule == 75) {
       return 1;
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "--%s conflicts with a previous setting of %u.\n", argument,
-              GlobalState.check_for_N_move_rule);
+              globals->check_for_N_move_rule);
       exit(1);
     }
   } else if (stringcompare(argument, "skipmatching") == 0) {
     /* Extract the selected match numbers from a list. */
-    game_number *number_list = extract_game_number_list(associated_value);
+    game_number *number_list =
+        extract_game_number_list(globals, associated_value);
     if (number_list != NULL) {
-      GlobalState.skip_game_numbers = number_list;
-      GlobalState.next_game_number_to_skip = number_list;
+      globals->skip_game_numbers = number_list;
+      globals->next_game_number_to_skip = number_list;
     } else {
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "splitvariants") == 0) {
-    if (GlobalState.keep_variations) {
-      GlobalState.split_variants = true;
+    if (globals->keep_variations) {
+      globals->split_variants = true;
       if (associated_value != NULL) {
         unsigned limit;
         if (sscanf(associated_value, "%u", &limit) == 1) {
-          GlobalState.split_depth_limit = limit;
+          globals->split_depth_limit = limit;
           return 2;
         } else {
           return 1;
@@ -1498,22 +1503,22 @@ int process_long_form_argument(const char *argument,
         return 1;
       }
     } else {
-      fprintf(GlobalState.logfile, "--%s clashes with the -%c flag.\n",
-              argument, DONT_KEEP_VARIATIONS_ARGUMENT);
+      fprintf(globals->logfile, "--%s clashes with the -%c flag.\n", argument,
+              DONT_KEEP_VARIATIONS_ARGUMENT);
       exit(1);
       return 1;
     }
   } else if (stringcompare(argument, "stalemate") == 0) {
-    if (GlobalState.match_only_checkmate) {
-      fprintf(GlobalState.logfile, "--%s clashes with the --checkmate.\n",
+    if (globals->match_only_checkmate) {
+      fprintf(globals->logfile, "--%s clashes with the --checkmate.\n",
               argument);
       exit(1);
-    } else if (GlobalState.match_only_insufficient_material) {
-      fprintf(GlobalState.logfile, "--%s clashes with the --insufficient.\n",
+    } else if (globals->match_only_insufficient_material) {
+      fprintf(globals->logfile, "--%s clashes with the --insufficient.\n",
               argument);
       exit(1);
     } else {
-      GlobalState.match_only_stalemate = true;
+      globals->match_only_stalemate = true;
     }
     return 1;
   } else if (stringcompare(argument, "startply") == 0) {
@@ -1521,21 +1526,21 @@ int process_long_form_argument(const char *argument,
       int limit;
       if (sscanf(associated_value, "%d", &limit) == 1) {
         if (limit >= 1) {
-          GlobalState.startply = (unsigned)limit;
+          globals->startply = (unsigned)limit;
           return 2;
         } else {
-          fprintf(GlobalState.logfile,
+          fprintf(globals->logfile,
                   "--%s must be greater than or equal to 1.\n", argument);
           exit(1);
         }
       } else {
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "--%s requires a number greater than or equal to 1.\n",
                 argument);
         exit(1);
       }
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "--%s requires a number greater than or equal to 1.\n", argument);
       exit(1);
     }
@@ -1545,54 +1550,54 @@ int process_long_form_argument(const char *argument,
     /* Extract the limit. */
     if (sscanf(associated_value, "%d", &limit) == 1) {
       if (limit > 0) {
-        GlobalState.maximum_matches = limit;
+        globals->maximum_matches = limit;
       } else {
-        fprintf(GlobalState.logfile,
-                "--%s requires a number greater than zero.\n", argument);
+        fprintf(globals->logfile, "--%s requires a number greater than zero.\n",
+                argument);
         exit(1);
       }
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "--%s requires a number greater than zero to follow it.\n",
               argument);
       exit(1);
     }
     return 2;
   } else if (stringcompare(argument, "suppressmatched") == 0) {
-    GlobalState.suppress_matched = true;
+    globals->suppress_matched = true;
     return 1;
   } else if (stringcompare(argument, "tagsubstr") == 0) {
-    GlobalState.tag_match_anywhere = true;
+    globals->tag_match_anywhere = true;
     return 1;
   } else if (stringcompare(argument, "totalplycount") == 0) {
-    GlobalState.output_total_plycount = true;
+    globals->output_total_plycount = true;
     return 1;
   } else if (stringcompare(argument, "underpromotion") == 0) {
-    GlobalState.match_underpromotion = true;
+    globals->match_underpromotion = true;
     return 1;
   } else if (stringcompare(argument, "version") == 0) {
-    fprintf(GlobalState.logfile, "pgn-extract %s\n", CURRENT_VERSION);
+    fprintf(globals->logfile, "pgn-extract %s\n", CURRENT_VERSION);
     exit(0);
     return 1;
   } else if (stringcompare(argument, "wtm") == 0) {
-    if (GlobalState.whose_move == EITHER_TO_MOVE) {
-      GlobalState.whose_move = WHITE_TO_MOVE;
+    if (globals->whose_move == EITHER_TO_MOVE) {
+      globals->whose_move = WHITE_TO_MOVE;
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "%s conflicts with previous setting of black to move.\n",
               argument);
     }
     return 1;
   } else if (stringcompare(argument, "xroster") == 0) {
-    if (GlobalState.tag_output_format == SEVEN_TAG_ROSTER) {
-      fprintf(GlobalState.logfile, "--%s clashes with -%c.\n", argument,
+    if (globals->tag_output_format == SEVEN_TAG_ROSTER) {
+      fprintf(globals->logfile, "--%s clashes with -%c.\n", argument,
               SEVEN_TAG_ROSTER_ARGUMENT);
       exit(1);
     }
-    GlobalState.only_output_wanted_tags = true;
+    globals->only_output_wanted_tags = true;
     return 1;
   } else {
-    fprintf(GlobalState.logfile, "Unrecognised long-form argument: --%s\n",
+    fprintf(globals->logfile, "Unrecognised long-form argument: --%s\n",
             argument);
     exit(1);
     return 1;
@@ -1604,7 +1609,8 @@ int process_long_form_argument(const char *argument,
  * Where range is either N or N1:N2.
  * The numbers must be in ascending order and > 0.
  */
-static game_number *extract_game_number_list(const char *number_list) {
+static game_number *extract_game_number_list(const StateInfo *globals,
+                                             const char *number_list) {
   char *csv = copy_string(number_list);
   bool ok = true;
   game_number *head = NULL, *tail = NULL;
@@ -1645,7 +1651,7 @@ static game_number *extract_game_number_list(const char *number_list) {
       }
       token = strtok(NULL, ",");
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "Numbers in %s must be in the format N or N:N and in ascending "
               "order.",
               number_list);
@@ -1667,41 +1673,42 @@ static game_number *extract_game_number_list(const char *number_list) {
 /* Set the lower and/or upper bounds limits.
  * which must be one of l/e/u
  */
-static bool set_move_bounds(char bounds_or_ply, char limit, unsigned number) {
+static bool set_move_bounds(StateInfo *globals, char bounds_or_ply, char limit,
+                            unsigned number) {
   bool Ok;
-  GlobalState.check_move_bounds = true;
+  globals->check_move_bounds = true;
   switch (limit) {
   case 'e':
-    GlobalState.lower_move_bound =
+    globals->lower_move_bound =
         bounds_or_ply == MOVE_BOUNDS_ARGUMENT ? 2 * (number - 1) + 1 : number;
-    GlobalState.upper_move_bound =
+    globals->upper_move_bound =
         bounds_or_ply == MOVE_BOUNDS_ARGUMENT ? 2 * number : number;
     Ok = true;
     break;
   case 'l':
-    if (number <= GlobalState.upper_move_bound) {
-      GlobalState.lower_move_bound =
+    if (number <= globals->upper_move_bound) {
+      globals->lower_move_bound =
           bounds_or_ply == MOVE_BOUNDS_ARGUMENT ? 2 * (number - 1) + 1 : number;
       Ok = true;
     } else {
-      fprintf(GlobalState.logfile, "Lower bound of ply limit is greater than "
-                                   "the upper bound: bound ignored.\n");
+      fprintf(globals->logfile, "Lower bound of ply limit is greater than "
+                                "the upper bound: bound ignored.\n");
       Ok = false;
     }
     break;
   case 'u':
-    if (number >= GlobalState.lower_move_bound) {
-      GlobalState.upper_move_bound =
+    if (number >= globals->lower_move_bound) {
+      globals->upper_move_bound =
           bounds_or_ply == MOVE_BOUNDS_ARGUMENT ? 2 * number : number;
       Ok = true;
     } else {
-      fprintf(GlobalState.logfile, "Upper bound of ply limit is smaller than "
-                                   "the lower bound: bound ignored.\n");
+      fprintf(globals->logfile, "Upper bound of ply limit is smaller than "
+                                "the lower bound: bound ignored.\n");
       Ok = false;
     }
     break;
   default:
-    fprintf(GlobalState.logfile, "Internal error: %c must be one of e/l/u.\n",
+    fprintf(globals->logfile, "Internal error: %c must be one of e/l/u.\n",
             limit);
     Ok = false;
     break;

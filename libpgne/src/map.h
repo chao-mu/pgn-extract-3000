@@ -27,7 +27,8 @@
 #include <stdbool.h>
 
 void init_hashtab(void);
-bool determine_move_details(Colour colour, Move *move_details, Board *board);
+bool determine_move_details(const StateInfo *globals, Colour colour,
+                            Move *move_details, Board *board);
 HashCode hash_lookup(Col col, Rank rank, Piece piece, Colour colour);
 void make_move(MoveClass class, Col from_col, Rank from_rank, Col to_col,
                Rank to_rank, Piece piece, Colour colour, Board *board);
@@ -47,11 +48,14 @@ MovePair *find_king_moves(Col to_col, Rank to_rank, Colour colour,
 MovePair *exclude_checks(Piece piece, Colour colour, MovePair *possibles,
                          const Board *board);
 void free_move_pair_list(MovePair *move_list);
-bool king_is_in_checkmate(Colour colour, Board *board);
+bool king_is_in_checkmate(const StateInfo *globals, Colour colour,
+                          Board *board);
 Col find_castling_king_col(Colour colour, const Board *board);
 Col find_castling_rook_col(Colour colour, const Board *board,
                            MoveClass castling);
-MovePair *find_all_moves(const Board *board, Colour colour);
-bool at_least_one_move(const Board *board, Colour colour);
+MovePair *find_all_moves(const StateInfo *globals, const Board *board,
+                         Colour colour);
+bool at_least_one_move(const StateInfo *globals, const Board *board,
+                       Colour colour);
 
 #endif // MAP_H

@@ -1,13 +1,14 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(pgn-extract)
+project(pgn-extract-3000)
 
-set(TARGET_NAME ${PROJECT_NAME})
 set(LIB_NAME pgne)
+set(EXEC_NAME pgn-extract)
 
 set(SOURCE_FILES
-    src/main.c
     src/apply.h
+    src/globals.h
+    src/shim.c
     src/taglines.h
     src/defs.h
     src/map.h
@@ -45,13 +46,17 @@ set(SOURCE_FILES
     src/typedef.h
     src/argsfile.h)
 
-add_executable(pgn-extract ${SOURCE_FILES})
-
-target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror
-                                              -Wno-unused-parameter)
-target_compile_features(${TARGET_NAME} PRIVATE c_std_17)
-target_link_libraries(${TARGET_NAME} m)
-
 add_library(${LIB_NAME} STATIC ${SOURCE_FILES})
+add_executable(${EXEC_NAME} src/main.c)
 
-install(TARGETS ${LIB_NAME} DESTINATION .)
+target_compile_options(${EXEC_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror
+                                            -Wno-unused-parameter)
+target_compile_options(${LIB_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror
+                                           -Wno-unused-parameter)
+target_compile_features(${EXEC_NAME} PRIVATE c_std_17)
+target_compile_features(${LIB_NAME} PRIVATE c_std_17)
+
+target_link_libraries(${LIB_NAME} m)
+target_link_libraries(${EXEC_NAME} ${LIB_NAME})
+
+install(TARGETS ${LIB_NAME} ${EXEC_NAME} DESTINATION .)

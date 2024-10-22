@@ -21,7 +21,7 @@
 
 #include "taglines.h"
 
-#include "defs.h"
+#include "grammar.h"
 #include "lex.h"
 #include "lines.h"
 #include "moves.h"
@@ -42,25 +42,26 @@ static FILE *yyin = NULL;
  * EOF before yywrap() is called.
  * Be careful to leave lex in the right state.
  */
-void read_tag_file(const char *TagFile, bool positive_match) {
+void read_tag_file(StateInfo *globals, const char *TagFile,
+                   bool positive_match) {
   yyin = fopen(TagFile, "r");
   if (yyin != NULL) {
     bool keep_reading = true;
 
     while (keep_reading) {
-      char *line = next_input_line(yyin);
+      char *line = next_input_line(globals, yyin);
       if (line != NULL) {
-        keep_reading = process_tag_line(TagFile, line, positive_match);
+        keep_reading = process_tag_line(globals, TagFile, line, positive_match);
       } else {
         keep_reading = false;
       }
     }
     (void)fclose(yyin);
     /* Call yywrap in order to set up for the next (first) input file. */
-    (void)yywrap();
+    (void)yywrap(globals);
     yyin = NULL;
   } else {
-    fprintf(GlobalState.logfile, "Unable to open %s for reading.\n", TagFile);
+    fprintf(globals->logfile, "Unable to open %s for reading.\n", TagFile);
     exit(1);
   }
 }
@@ -68,32 +69,33 @@ void read_tag_file(const char *TagFile, bool positive_match) {
 /* Read the contents of a file that lists the
  * required output ordering for tags.
  */
-void read_tag_roster_file(const char *RosterFile) {
+void read_tag_roster_file(StateInfo *globals, const char *RosterFile) {
   bool keep_reading = true;
-  yyin = must_open_file(RosterFile, "r");
+  yyin = must_open_file(globals, RosterFile, "r");
 
   while (keep_reading) {
-    char *line = next_input_line(yyin);
+    char *line = next_input_line(globals, yyin);
     if (line != NULL) {
-      keep_reading = process_roster_line(line);
+      keep_reading = process_roster_line(globals, line);
     } else {
       keep_reading = false;
     }
   }
   (void)fclose(yyin);
   /* Call yywrap in order to set up for the next (first) input file. */
-  (void)yywrap();
+  (void)yywrap(globals);
 }
 
 /* Extract a tag/value pair from the given line.
  * Return true if this was successful.
  */
-bool process_tag_line(const char *TagFile, char *line, bool positive_match) {
+bool process_tag_line(StateInfo *globals, const char *TagFile, char *line,
+                      bool positive_match) {
   bool keep_reading = true;
   if (non_blank_line(line)) {
     unsigned char *linep = (unsigned char *)line;
     /* We should find a tag. */
-    LinePair resulting_line = gather_tag(line, linep);
+    LinePair resulting_line = gather_tag(globals, line, linep);
     TokenType tag_token;
 
     /* Pick up where we are now. */
@@ -144,8 +146,8 @@ bool process_tag_line(const char *TagFile, char *line, bool positive_match) {
           }
           break;
         default:
-          fprintf(GlobalState.logfile,
-                  "Internal error: unknown operator in %s\n", line);
+          fprintf(globals->logfile, "Internal error: unknown operator in %s\n",
+                  line);
           linep++;
           break;
         }
@@ -158,7 +160,7 @@ bool process_tag_line(const char *TagFile, char *line, bool positive_match) {
       if (is_character_class(*linep, DOUBLE_QUOTE)) {
         /* A string, as expected. */
         linep++;
-        resulting_line = gather_string(line, linep);
+        resulting_line = gather_string(globals, line, linep);
         line = resulting_line.line;
         linep = resulting_line.linep;
         if (tag_token == TAG) {
@@ -167,7 +169,7 @@ bool process_tag_line(const char *TagFile, char *line, bool positive_match) {
            * a positional match.
            */
           if (tag_index == FEN_TAG) {
-            add_fen_positional_match(yylval.token_string);
+            add_fen_positional_match(globals, yylval.token_string);
             (void)free((void *)yylval.token_string);
           } else if (tag_index == PSEUDO_FEN_PATTERN_TAG ||
                      tag_index == PSEUDO_FEN_PATTERN_I_TAG) {
@@ -185,29 +187,29 @@ bool process_tag_line(const char *TagFile, char *line, bool positive_match) {
             /* Generate an inverted version as well if
              * it is PSEUDO_FEN_PATTERN_I_TAG.
              */
-            add_fen_pattern_match(yylval.token_string,
+            add_fen_pattern_match(globals, yylval.token_string,
                                   tag_index == PSEUDO_FEN_PATTERN_I_TAG, label);
             (void)free((void *)yylval.token_string);
           } else {
             if (positive_match) {
-              add_tag_to_positive_list(tag_index,
+              add_tag_to_positive_list(globals, tag_index,
                                        yylval.token_string, operator);
             } else {
-              add_tag_to_negative_list(tag_index,
+              add_tag_to_negative_list(globals, tag_index,
                                        yylval.token_string, operator);
             }
             (void)free((void *)yylval.token_string);
           }
         } else {
-          if (!GlobalState.skipping_current_game) {
-            fprintf(GlobalState.logfile, "File %s: unrecognised tag name %s\n",
+          if (!globals->skipping_current_game) {
+            fprintf(globals->logfile, "File %s: unrecognised tag name %s\n",
                     TagFile, line);
           }
           (void)free((void *)yylval.token_string);
         }
       } else {
-        if (!GlobalState.skipping_current_game) {
-          fprintf(GlobalState.logfile,
+        if (!globals->skipping_current_game) {
+          fprintf(globals->logfile,
                   "File %s: missing quoted tag string in %s at %s\n", TagFile,
                   line, linep);
         }
@@ -223,12 +225,12 @@ bool process_tag_line(const char *TagFile, char *line, bool positive_match) {
 /* Extract a tag name from the given line.
  * Return true if this was successful.
  */
-bool process_roster_line(char *line) {
+bool process_roster_line(const StateInfo *globals, char *line) {
   bool keep_reading = true;
   if (non_blank_line(line)) {
     unsigned char *linep = (unsigned char *)line;
     /* We should find a tag. */
-    LinePair resulting_line = gather_tag(line, linep);
+    LinePair resulting_line = gather_tag(globals, line, linep);
     TokenType tag_token;
 
     /* Pick up where we are now. */
@@ -238,7 +240,7 @@ bool process_roster_line(char *line) {
     if (tag_token != NO_TOKEN) {
       /* Pick up which tag it was. */
       int tag_index = yylval.tag_index;
-      add_to_output_tag_order((TagName)tag_index);
+      add_to_output_tag_order(globals, (TagName)tag_index);
     } else {
       /* Terminate the reading, as we have run out of tags. */
       keep_reading = false;

@@ -27,13 +27,14 @@
 
 #include <stdbool.h>
 
-void format_game(Game *current_game, FILE *outputfile);
-void print_str(FILE *fp, const char *str);
-void terminate_line(FILE *fp);
-OutputFormat which_output_format(const char *arg);
+void format_game(const StateInfo *globals, Game *current_game,
+                 FILE *outputfile);
+void print_str(const StateInfo *globals, FILE *fp, const char *str);
+void terminate_line(const StateInfo *globals, FILE *fp);
+OutputFormat which_output_format(const StateInfo *globals, const char *arg);
 const char *output_file_suffix(OutputFormat format);
-void add_to_output_tag_order(TagName tag);
-void set_output_line_length(unsigned max);
+void add_to_output_tag_order(const StateInfo *globals, TagName tag);
+void set_output_line_length(StateInfo *globals, unsigned max);
 void add_plycount(const Game *game);
 void add_total_plycount(const Game *game, bool count_variations);
 /* Provide enough static space to build FEN string. */

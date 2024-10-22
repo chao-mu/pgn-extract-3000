@@ -23,6 +23,8 @@
 #ifndef ARGSFILE_H
 #define ARGSFILE_H
 
+#include "typedef.h"
+
 typedef enum {
   SEVEN_TAG_ROSTER_ARGUMENT = '7',
   GAMES_PER_FILE_ARGUMENT = '#',
@@ -67,8 +69,9 @@ typedef enum {
   NO_ARGUMENT_MATCH = '\0' /* No argument match. */
 } ArgType;
 
-void process_argument(char arg_letter, const char *associated_value);
-int process_long_form_argument(const char *argument,
+void process_argument(StateInfo *globals, char arg_letter,
+                      const char *associated_value);
+int process_long_form_argument(StateInfo *globals, const char *argument,
                                const char *associated_value);
 
 #endif // ARGSFILE_H

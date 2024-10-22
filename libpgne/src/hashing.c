@@ -25,11 +25,9 @@
 #include "lex.h"
 #include "mymalloc.h"
 #include "taglist.h"
-#include "tokens.h"
 #include "typedef.h"
 #include "zobrist.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -102,17 +100,19 @@ typedef struct VirtualHashLog {
 
 static FILE *hash_file = NULL;
 
-static const char *previous_virtual_occurance(Game game_details);
+static const char *previous_virtual_occurance(const StateInfo *globals,
+                                              Game game_details);
 
 /*
  * Check whether the position counts indicate a desired repetition.
  * If we are checking for repetition return true if it does and false otherwise.
  * If we are not then return true.
  */
-bool check_for_only_repetition(PositionCount *position_counts) {
-  if (GlobalState.check_for_repetition > 0) {
+bool check_for_only_repetition(const StateInfo *globals,
+                               PositionCount *position_counts) {
+  if (globals->check_for_repetition > 0) {
     PositionCount *entry = position_counts;
-    while (entry != NULL && entry->count < GlobalState.check_for_repetition) {
+    while (entry != NULL && entry->count < globals->check_for_repetition) {
       entry = entry->next;
     }
     return entry != NULL;
@@ -257,10 +257,10 @@ PositionCount *copy_position_count_list(PositionCount *original) {
 /* Determine which table to initialise, depending
  * on whether use_virtual_hash_table is set or not.
  */
-void init_duplicate_hash_table(void) {
+void init_duplicate_hash_table(const StateInfo *globals) {
   int i;
 
-  if (GlobalState.use_virtual_hash_table) {
+  if (globals->use_virtual_hash_table) {
     VirtualLogTable = (LogHeaderEntry *)malloc_or_die(LOG_TABLE_SIZE *
                                                       sizeof(*VirtualLogTable));
     for (i = 0; i < LOG_TABLE_SIZE; i++) {
@@ -268,7 +268,7 @@ void init_duplicate_hash_table(void) {
     }
     hash_file = fopen(VIRTUAL_FILE, "w+b");
     if (hash_file == NULL) {
-      fprintf(GlobalState.logfile, "Unable to open %s\n", VIRTUAL_FILE);
+      fprintf(globals->logfile, "Unable to open %s\n", VIRTUAL_FILE);
     }
   } else {
     LogTable = (HashLog **)malloc_or_die(LOG_TABLE_SIZE * sizeof(*LogTable));
@@ -279,8 +279,8 @@ void init_duplicate_hash_table(void) {
 }
 
 /* Close and remove the temporary file if in use. */
-void clear_duplicate_hash_table(void) {
-  if (GlobalState.use_virtual_hash_table) {
+void clear_duplicate_hash_table(const StateInfo *globals) {
+  if (globals->use_virtual_hash_table) {
     if (hash_file != NULL) {
       (void)fclose(hash_file);
       unlink(VIRTUAL_FILE);
@@ -290,15 +290,16 @@ void clear_duplicate_hash_table(void) {
 }
 
 /* Retrieve a duplicate table entry from the hash file. */
-static int retrieve_virtual_entry(long ix, VirtualHashLog *entry) {
+static int retrieve_virtual_entry(const StateInfo *globals, long ix,
+                                  VirtualHashLog *entry) {
   if (hash_file == NULL) {
     return 0;
   } else if (fseek(hash_file, ix, SEEK_SET) != 0) {
-    fprintf(GlobalState.logfile,
-            "Fseek error to %ld in retrieve_virtual_entry\n", ix);
+    fprintf(globals->logfile, "Fseek error to %ld in retrieve_virtual_entry\n",
+            ix);
     return 0;
   } else if (fread((void *)entry, sizeof(*entry), 1, hash_file) != 1) {
-    fprintf(GlobalState.logfile,
+    fprintf(globals->logfile,
             "Fread error from %ld in retrieve_virtual_entry\n", ix);
     return 0;
   } else {
@@ -307,14 +308,15 @@ static int retrieve_virtual_entry(long ix, VirtualHashLog *entry) {
 }
 
 /* Write a duplicate table entry to the hash file. */
-static int write_virtual_entry(long where, const VirtualHashLog *entry) {
+static int write_virtual_entry(const StateInfo *globals, long where,
+                               const VirtualHashLog *entry) {
   if (fseek(hash_file, where, SEEK_SET) != 0) {
-    fprintf(GlobalState.logfile, "Fseek error to %ld in write_virtual_entry\n",
+    fprintf(globals->logfile, "Fseek error to %ld in write_virtual_entry\n",
             where);
     return 0;
   } else if (fwrite((void *)entry, sizeof(*entry), 1, hash_file) != 1) {
-    fprintf(GlobalState.logfile,
-            "Fwrite error from %ld in write_virtual_entry\n", where);
+    fprintf(globals->logfile, "Fwrite error from %ld in write_virtual_entry\n",
+            where);
     fflush(hash_file);
     return 0;
   } else {
@@ -329,19 +331,21 @@ static int write_virtual_entry(long where, const VirtualHashLog *entry) {
  * the final_ and cumulative_ hash values in game_details
  * are already present in VirtualLogTable.
  */
-static const char *previous_virtual_occurance(Game game_details) {
+static const char *previous_virtual_occurance(const StateInfo *globals,
+                                              Game game_details) {
   unsigned ix = game_details.final_hash_value % LOG_TABLE_SIZE;
   VirtualHashLog entry;
   bool duplicate = false;
   const char *original_filename = NULL;
 
   /* Are we keeping this information? */
-  if (GlobalState.suppress_duplicates || GlobalState.suppress_originals ||
-      GlobalState.duplicate_file != NULL) {
+  if (globals->suppress_duplicates || globals->suppress_originals ||
+      globals->duplicate_file != NULL) {
     if (VirtualLogTable[ix].head < 0l) {
       /* First occurrence. */
     } else {
-      int keep_going = retrieve_virtual_entry(VirtualLogTable[ix].head, &entry);
+      int keep_going =
+          retrieve_virtual_entry(globals, VirtualLogTable[ix].head, &entry);
 
       while (keep_going && !duplicate) {
         if ((entry.final_hash_value == game_details.final_hash_value) &&
@@ -353,7 +357,7 @@ static const char *previous_virtual_occurance(Game game_details) {
           original_filename = input_file_name(entry.file_number);
           duplicate = true;
         } else if (entry.next >= 0l) {
-          keep_going = retrieve_virtual_entry(entry.next, &entry);
+          keep_going = retrieve_virtual_entry(globals, entry.next, &entry);
         } else {
           keep_going = 0;
         }
@@ -376,7 +380,7 @@ static const char *previous_virtual_occurance(Game game_details) {
       entry.next = -1l;
 
       /* Write out these details. */
-      if (write_virtual_entry(next_free_entry, &entry)) {
+      if (write_virtual_entry(globals, next_free_entry, &entry)) {
         long where_written = next_free_entry;
         /* Move on ready for next time. */
         next_free_entry += sizeof(entry);
@@ -388,9 +392,10 @@ static const char *previous_virtual_occurance(Game game_details) {
         } else {
           VirtualHashLog tail;
 
-          if (retrieve_virtual_entry(VirtualLogTable[ix].tail, &tail)) {
+          if (retrieve_virtual_entry(globals, VirtualLogTable[ix].tail,
+                                     &tail)) {
             tail.next = where_written;
-            (void)write_virtual_entry(VirtualLogTable[ix].tail, &tail);
+            (void)write_virtual_entry(globals, VirtualLogTable[ix].tail, &tail);
             /* Store the new tail address. */
             VirtualLogTable[ix].tail = where_written;
           }
@@ -410,15 +415,15 @@ static const char *previous_virtual_occurance(Game game_details) {
  * Fuzzy matches depend on the match depth and do not use the
  * cumulative hash value.
  */
-const char *previous_occurance(Game game_details, unsigned plycount) {
+const char *previous_occurance(const StateInfo *globals, Game game_details,
+                               unsigned plycount) {
   const char *original_filename = NULL;
-  if (GlobalState.use_virtual_hash_table) {
-    original_filename = previous_virtual_occurance(game_details);
+  if (globals->use_virtual_hash_table) {
+    original_filename = previous_virtual_occurance(globals, game_details);
   } else {
     /* Are we keeping this information? */
-    if (GlobalState.suppress_duplicates || GlobalState.suppress_originals ||
-        GlobalState.fuzzy_match_duplicates ||
-        GlobalState.duplicate_file != NULL) {
+    if (globals->suppress_duplicates || globals->suppress_originals ||
+        globals->fuzzy_match_duplicates || globals->duplicate_file != NULL) {
       bool duplicate = false;
       // Entry index.
       unsigned ix;
@@ -439,11 +444,11 @@ const char *previous_occurance(Game game_details, unsigned plycount) {
           entry = entry->next;
         }
       }
-      if (!duplicate && GlobalState.fuzzy_match_duplicates) {
+      if (!duplicate && globals->fuzzy_match_duplicates) {
         ix = game_details.fuzzy_duplicate_hash % LOG_TABLE_SIZE;
         entry = LogTable[ix];
         while (entry != NULL && !duplicate) {
-          if (GlobalState.fuzzy_match_depth == 0 &&
+          if (globals->fuzzy_match_depth == 0 &&
               entry->final_hash_value == game_details.final_hash_value) {
             /* Accept positional match at the end of the game. */
             duplicate = true;
@@ -468,12 +473,12 @@ const char *previous_occurance(Game game_details, unsigned plycount) {
         /* First occurrence, so add it to the log. */
         entry = (HashLog *)malloc_or_die(sizeof(*entry));
 
-        if (!GlobalState.fuzzy_match_duplicates) {
+        if (!globals->fuzzy_match_duplicates) {
           /* Store the two hash values. */
           entry->final_hash_value = game_details.final_hash_value;
           entry->cumulative_hash_value = game_details.cumulative_hash_value;
-        } else if (GlobalState.fuzzy_match_depth > 0 &&
-                   plycount >= GlobalState.fuzzy_match_depth) {
+        } else if (globals->fuzzy_match_depth > 0 &&
+                   plycount >= globals->fuzzy_match_depth) {
           /* Store just the hash value from the fuzzy depth. */
           entry->final_hash_value = game_details.fuzzy_duplicate_hash;
           entry->cumulative_hash_value = 0;
@@ -513,12 +518,12 @@ static bool standard_start_seen = false;
  * deleted or if the current position has not been met before.
  * Otherwise return true.
  */
-bool check_duplicate_setup(const Game *game_details) {
+bool check_duplicate_setup(const StateInfo *globals, const Game *game_details) {
   bool keep = true;
-  if (GlobalState.delete_same_setup) {
+  if (globals->delete_same_setup) {
     if (game_details->tags[FEN_TAG] != NULL) {
       uint64_t hash =
-          generate_zobrist_hash_from_fen(game_details->tags[FEN_TAG]);
+          generate_zobrist_hash_from_fen(globals, game_details->tags[FEN_TAG]);
       unsigned ix = hash % SETUP_TABLE_SIZE;
       bool found = false;
       for (HashLog *entry = polyglot_codes_of_interest[ix];

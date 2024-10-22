@@ -26,8 +26,8 @@
 
 #include <stdbool.h>
 
-void add_fen_pattern(const char *fen_pattern, bool add_reverse,
-                     const char *label);
-const char *pattern_match_board(const Board *board);
+void add_fen_pattern(const StateInfo *globals, const char *fen_pattern,
+                     bool add_reverse, const char *label);
+const char *pattern_match_board(const StateInfo *globals, const Board *board);
 
 #endif // FENMATCHER_H

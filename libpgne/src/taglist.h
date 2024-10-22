@@ -32,6 +32,8 @@
 #ifndef TAGLIST_H
 #define TAGLIST_H
 
+#include "typedef.h"
+
 #include <stdbool.h>
 
 typedef enum {
@@ -133,15 +135,17 @@ typedef enum {
   REGEX
 } TagOperator;
 
-void add_tag_to_negative_list(int tag, const char *tagstr,
+void add_tag_to_negative_list(StateInfo *globals, int tag, const char *tagstr,
                               TagOperator operator);
-void add_tag_to_positive_list(int tag, const char *tagstr,
+void add_tag_to_positive_list(StateInfo *globals, int tag, const char *tagstr,
                               TagOperator operator);
-bool check_setup_tag(char *Details[]);
-bool check_ECO_tag(char *Details[], bool positive_match);
-bool check_tag_details_not_ECO(char *Details[], int num_details,
-                               bool positive_match);
-void extract_tag_argument(const char *argstr, bool positive_match);
+bool check_setup_tag(const StateInfo *globals, char *Details[]);
+bool check_ECO_tag(const StateInfo *globals, char *Details[],
+                   bool positive_match);
+bool check_tag_details_not_ECO(const StateInfo *globals, char *Details[],
+                               int num_details, bool positive_match);
+void extract_tag_argument(StateInfo *globals, const char *argstr,
+                          bool positive_match);
 void init_tag_lists(void);
 
 #endif // TAGLIST_H

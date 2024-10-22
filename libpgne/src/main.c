@@ -20,35 +20,17 @@
  */
 
 #include "argsfile.h"
-#include "defs.h"
 #include "grammar.h"
 #include "hashing.h"
 #include "lex.h"
 #include "map.h"
-#include "material.h"
-#include "moves.h"
-#include "mymalloc.h"
 #include "output.h"
 #include "taglist.h"
-#include "tokens.h"
 #include "typedef.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* The maximum length of an output line.  This is conservatively
- * slightly smaller than the PGN export standard of 80.
- */
-#define MAX_LINE_LENGTH 75
-
-/* Define a file name relative to the current directory representing
- * a file of ECO classificiations.
- */
-#ifndef DEFAULT_ECO_FILE
-#define DEFAULT_ECO_FILE "eco.pgn"
-#endif
 
 /* This structure holds details of the program state
  * available to all parts of the program.
@@ -57,7 +39,7 @@
  * arguments and are read-only thereafter. If I had done this in
  * C++ there would have been a cleaner interface!
  */
-StateInfo GlobalState = {
+static StateInfo GlobalState = {
     false,            /* skipping_current_game */
     false,            /* check_only (-r) */
     2,                /* verbosity level (-s and --quiet) */
@@ -153,16 +135,21 @@ StateInfo GlobalState = {
     NULL,             /* next_game_number_to_skip */
 };
 
-/* Prepare the output file handles in GlobalState. */
-static void init_default_global_state(void) {
+/* Prepare the output file handles in globals. */
+void init_default_global_state(void) {
   GlobalState.outputfile = stdout;
   GlobalState.logfile = stderr;
-  set_output_line_length(MAX_LINE_LENGTH);
+  set_output_line_length(&GlobalState, MAX_LINE_LENGTH);
 }
+/* The maximum length of an output line.  This is conservatively
+ * slightly smaller than the PGN export standard of 80.
+ */
+#define MAX_LINE_LENGTH 75
 
 int main(int argc, char *argv[]) {
   int argnum;
 
+  StateInfo *globals = &GlobalState;
   /* Prepare global state. */
   init_default_global_state();
   /* Prepare the Game_Header. */
@@ -173,6 +160,7 @@ int main(int argc, char *argv[]) {
   init_hashtab();
   /* Initialise the lexical analyser's tables. */
   init_lex_tables();
+
   /* Allow for some arguments. */
   for (argnum = 1; argnum < argc;) {
     const char *argument = argv[argnum];
@@ -191,13 +179,13 @@ int main(int argc, char *argv[]) {
       case MATCH_CHECKMATE_ARGUMENT:
       case SUPPRESS_ORIGINALS_ARGUMENT:
       case USE_VIRTUAL_HASH_TABLE_ARGUMENT:
-        process_argument(argument[1], "");
+        process_argument(globals, argument[1], "");
         argnum++;
         break;
 
         /* Argument rewritten as a different one. */
       case ALTERNATIVE_HELP_ARGUMENT:
-        process_argument(HELP_ARGUMENT, "");
+        process_argument(globals, HELP_ARGUMENT, "");
         argnum++;
         break;
 
@@ -205,7 +193,7 @@ int main(int argc, char *argv[]) {
          * It must be adjacent to the argument and not separated from it.
          */
       case TAG_EXTRACTION_ARGUMENT:
-        process_argument(argument[1], &(argument[2]));
+        process_argument(globals, argument[1], &(argument[2]));
         argnum++;
         break;
 
@@ -216,7 +204,7 @@ int main(int argc, char *argv[]) {
       case HELP_ARGUMENT:
       case OUTPUT_FORMAT_ARGUMENT:
       case USE_ECO_FILE_ARGUMENT:
-        process_argument(argument[1], &(argument[2]));
+        process_argument(globals, argument[1], &(argument[2]));
         argnum++;
         break;
 
@@ -234,8 +222,8 @@ int main(int argc, char *argv[]) {
         /* Find out how many arguments were consumed
          * (1 or 2).
          */
-        args_processed =
-            process_long_form_argument(&argument[2], possible_associated_value);
+        args_processed = process_long_form_argument(globals, &argument[2],
+                                                    possible_associated_value);
         argnum += args_processed;
       } break;
 
@@ -263,14 +251,13 @@ int main(int argc, char *argv[]) {
            * like the next argument.
            */
           if ((*filename == '\0') || (*filename == '-')) {
-            fprintf(GlobalState.logfile, "Usage: -%c filename\n",
-                    argument_letter);
+            fprintf(globals->logfile, "Usage: -%c filename\n", argument_letter);
             exit(1);
           }
         } else {
           argnum++;
         }
-        process_argument(argument[1], filename);
+        process_argument(globals, argument[1], filename);
       } break;
 
       /* Arguments with a required following value. */
@@ -292,20 +279,20 @@ int main(int argc, char *argv[]) {
            * like the next argument.
            */
           if ((*associated_value == '\0') || (*associated_value == '-')) {
-            fprintf(GlobalState.logfile, "Usage: -%c value\n", argument_letter);
+            fprintf(globals->logfile, "Usage: -%c value\n", argument_letter);
             exit(1);
           }
         } else {
           argnum++;
         }
-        process_argument(argument[1], associated_value);
+        process_argument(globals, argument[1], associated_value);
       } break;
 
       case OUTPUT_FEN_STRING_ARGUMENT:
         /* May be following by an optional argument immediately after
          * the argument letter.
          */
-        process_argument(argument[1], &argument[2]);
+        process_argument(globals, argument[1], &argument[2]);
         argnum++;
         break;
         /* Argument that require different treatment because they
@@ -334,21 +321,21 @@ int main(int argc, char *argv[]) {
            * like the next argument.
            */
           if ((*filename == '\0') || (*filename == '-')) {
-            fprintf(GlobalState.logfile, "Usage: -%cfilename or -%c filename\n",
+            fprintf(globals->logfile, "Usage: -%cfilename or -%c filename\n",
                     argument_letter, argument_letter);
             exit(1);
           }
         } else {
           argnum++;
         }
-        process_argument(argument_letter, filename);
+        process_argument(globals, argument_letter, filename);
       } break;
       case HASHCODE_MATCH_ARGUMENT:
-        process_argument(argument[1], &argument[2]);
+        process_argument(globals, argument[1], &argument[2]);
         argnum++;
         break;
       default:
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "Unknown flag %s. Use -%c for usage details.\n", argument,
                 HELP_ARGUMENT);
         exit(1);
@@ -356,85 +343,84 @@ int main(int argc, char *argv[]) {
       }
     } else {
       /* Should be a file name containing games. */
-      add_filename_to_source_list(argument, NORMALFILE);
+      add_filename_to_source_list(globals, argument, NORMALFILE);
       argnum++;
     }
   }
 
   /* Make some adjustments to other settings if JSON output is required. */
-  if (GlobalState.json_format) {
-    if (GlobalState.output_format != EPD && GlobalState.output_format != CM &&
-        GlobalState.tsv_format == false &&
-        GlobalState.ECO_level == DONT_DIVIDE) {
-      GlobalState.keep_comments = false;
-      GlobalState.keep_variations = false;
-      GlobalState.keep_results = false;
+  if (globals->json_format) {
+    if (globals->output_format != EPD && globals->output_format != CM &&
+        globals->tsv_format == false && globals->ECO_level == DONT_DIVIDE) {
+      globals->keep_comments = false;
+      globals->keep_variations = false;
+      globals->keep_results = false;
     } else {
-      fprintf(GlobalState.logfile, "JSON output is not currently supported "
-                                   "with -E, -Wepd, -tsv or -Wcm\n");
-      GlobalState.json_format = false;
+      fprintf(globals->logfile, "JSON output is not currently supported "
+                                "with -E, -Wepd, -tsv or -Wcm\n");
+      globals->json_format = false;
     }
   }
 
   /* Make some adjustments to other settings if TSV output is required. */
-  if (GlobalState.tsv_format) {
-    if (GlobalState.json_format == false && GlobalState.output_format != CM &&
-        GlobalState.separate_comment_lines == false) {
-      GlobalState.max_line_length = 0;
+  if (globals->tsv_format) {
+    if (globals->json_format == false && globals->output_format != CM &&
+        globals->separate_comment_lines == false) {
+      globals->max_line_length = 0;
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "JSON output is not currently supported with --json or "
               "--commentlines and requires a fixed number of tags\n");
-      GlobalState.tsv_format = false;
+      globals->tsv_format = false;
     }
   }
 
   /* Prepare the hash tables for duplicate detection. */
-  init_duplicate_hash_table();
+  init_duplicate_hash_table(globals);
 
-  if (GlobalState.add_ECO) {
+  if (globals->add_ECO) {
     /* Read in a list of ECO lines in order to classify the games. */
-    if (open_eco_file(GlobalState.eco_file)) {
+    if (open_eco_file(globals, globals->eco_file)) {
       /* Indicate that the ECO file is currently being parsed. */
-      GlobalState.parsing_ECO_file = true;
-      yyparse(ECOFILE);
+      globals->parsing_ECO_file = true;
+      yyparse(globals, ECOFILE);
       reset_line_number();
-      GlobalState.parsing_ECO_file = false;
+      globals->parsing_ECO_file = false;
     } else {
-      fprintf(GlobalState.logfile, "Unable to open the ECO file %s.\n",
-              GlobalState.eco_file);
+      fprintf(globals->logfile, "Unable to open the ECO file %s.\n",
+              globals->eco_file);
       exit(1);
     }
   }
 
   /* Open up the first file as the source of input. */
-  if (!open_first_file()) {
+  if (!open_first_file(globals)) {
     exit(1);
   }
 
-  yyparse(GlobalState.current_file_type);
+  yyparse(globals, globals->current_file_type);
 
   /* @@@ I would prefer this to be somewhere else. */
-  if (GlobalState.json_format && !GlobalState.check_only) {
-    if (GlobalState.num_games_matched > 0) {
-      fputs("\n]\n", GlobalState.outputfile);
+  if (globals->json_format && !globals->check_only) {
+    if (globals->num_games_matched > 0) {
+      fputs("\n]\n", globals->outputfile);
     }
-    if (GlobalState.non_matching_file != NULL &&
-        GlobalState.num_non_matching_games > 0) {
-      fputs("\n]\n", GlobalState.non_matching_file);
+    if (globals->non_matching_file != NULL &&
+        globals->num_non_matching_games > 0) {
+      fputs("\n]\n", globals->non_matching_file);
     }
   }
 
   /* Remove any temporary files. */
-  clear_duplicate_hash_table();
-  if (!GlobalState.suppress_matched && GlobalState.verbosity > 1) {
-    fprintf(GlobalState.logfile, "%lu game%s matched out of %lu.\n",
-            GlobalState.num_games_matched,
-            GlobalState.num_games_matched == 1 ? "" : "s",
-            GlobalState.num_games_processed);
+  clear_duplicate_hash_table(globals);
+  if (!globals->suppress_matched && globals->verbosity > 1) {
+    fprintf(globals->logfile, "%lu game%s matched out of %lu.\n",
+            globals->num_games_matched,
+            globals->num_games_matched == 1 ? "" : "s",
+            globals->num_games_processed);
   }
-  if ((GlobalState.logfile != stderr) && (GlobalState.logfile != NULL)) {
-    (void)fclose(GlobalState.logfile);
+  if ((globals->logfile != stderr) && (globals->logfile != NULL)) {
+    (void)fclose(globals->logfile);
   }
   return 0;
 }

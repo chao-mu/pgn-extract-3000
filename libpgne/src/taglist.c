@@ -21,7 +21,6 @@
 
 #include "taglist.h"
 
-#include "defs.h"
 #include "moves.h"
 #include "mymalloc.h"
 #include "typedef.h"
@@ -76,13 +75,14 @@ typedef struct {
 
 static TagList positive_tags, negative_tags;
 
-static void add_tag_to_list(int tag, const char *tagstr, TagOperator operator,
-                            TagList * list);
-static bool check_list(int tag, const char *tag_string,
-                       const StringArray *list);
-static bool check_time_period(const char *tag_string, unsigned period,
-                              const StringArray *list);
-static bool check_elo_diff(const char *white_elo_string,
+static void add_tag_to_list(StateInfo *globals, int tag, const char *tagstr,
+                            TagOperator operator, TagList * list);
+static bool check_list(const StateInfo *globals, int tag,
+                       const char *tag_string, const StringArray *list);
+static bool check_time_period(const StateInfo *globals, const char *tag_string,
+                              unsigned period, const StringArray *list);
+static bool check_elo_diff(const StateInfo *globals,
+                           const char *white_elo_string,
                            const char *black_elo_string, StringArray *list);
 static char *soundex(const char *str);
 
@@ -110,11 +110,12 @@ void init_tag_lists(void) {
 /*
  * Extend the tag list to the new length.
  */
-static void extend_list_length(TagList *list, int new_length) {
+static void extend_list_length(const StateInfo *globals, TagList *list,
+                               int new_length) {
   if (new_length < list->list_length) {
-    fprintf(GlobalState.logfile,
+    fprintf(globals->logfile,
             "Internal error: inappropriate call to extend_list_length().\n");
-    fprintf(GlobalState.logfile,
+    fprintf(globals->logfile,
             "New length of %d is not greater than existing length of %d\n",
             new_length, list->list_length);
     exit(1);
@@ -283,36 +284,36 @@ static bool soundex_tag(int tag) {
 }
 
 /* Add tagstr to the positive list of tags to be matched. */
-void add_tag_to_positive_list(int tag, const char *tagstr,
+void add_tag_to_positive_list(StateInfo *globals, int tag, const char *tagstr,
                               TagOperator operator) {
-  add_tag_to_list(tag, tagstr, operator, & positive_tags);
+  add_tag_to_list(globals, tag, tagstr, operator, & positive_tags);
 }
 
 /* Add tagstr to the negative list of tags to be matched. */
-void add_tag_to_negative_list(int tag, const char *tagstr,
+void add_tag_to_negative_list(StateInfo *globals, int tag, const char *tagstr,
                               TagOperator operator) {
-  add_tag_to_list(tag, tagstr, operator, & negative_tags);
+  add_tag_to_list(globals, tag, tagstr, operator, & negative_tags);
 }
 
 /* Add tagstr to the list of tags to be matched.
  * If we are using soundex matching, then store
  * its soundex version rather than its plain text.
  */
-static void add_tag_to_list(int tag, const char *tagstr, TagOperator operator,
-                            TagList * list) {
+static void add_tag_to_list(StateInfo *globals, int tag, const char *tagstr,
+                            TagOperator operator, TagList * list) {
   if (tag >= list->list_length) {
     /* A new tag - one without a pre-defined _TAG #define.
      * Make sure there is room for it in TagList.
      */
-    extend_list_length(list, tag + 1);
+    extend_list_length(globals, list, tag + 1);
   }
   if (tag == FEN_TAG) {
-    add_fen_pattern_match(tagstr, false, NULL);
+    add_fen_pattern_match(globals, tagstr, false, NULL);
   } else if ((tag >= 0) && (tag < list->list_length)) {
     const char *string_to_store = tagstr;
     int ix;
 
-    if (GlobalState.use_soundex) {
+    if (globals->use_soundex) {
       if (soundex_tag(tag)) {
         string_to_store = soundex(tagstr);
       }
@@ -322,9 +323,9 @@ static void add_tag_to_list(int tag, const char *tagstr, TagOperator operator,
       list->list_of_tags[tag].tag_strings[ix].operator= operator;
     }
     /* Ensure that we know we are checking tags. */
-    GlobalState.check_tags = true;
+    globals->check_tags = true;
   } else {
-    fprintf(GlobalState.logfile, "Illegal tag number %d in add_tag_to_list.\n",
+    fprintf(globals->logfile, "Illegal tag number %d in add_tag_to_list.\n",
             tag);
   }
 }
@@ -342,51 +343,53 @@ static void add_tag_to_list(int tag, const char *tagstr, TagOperator operator,
  * The remainder of argstr is the argument string to be entered
  * into the appropriate list.
  */
-void extract_tag_argument(const char *argstr, bool positive_match) {
+void extract_tag_argument(StateInfo *globals, const char *argstr,
+                          bool positive_match) {
   const char *arg = &(argstr[1]);
   TagList *list = positive_match ? &positive_tags : &negative_tags;
 
   switch (*argstr) {
   case 'a':
-    add_tag_to_list(ANNOTATOR_TAG, arg, NONE, list);
+    add_tag_to_list(globals, ANNOTATOR_TAG, arg, NONE, list);
     break;
   case 'b':
-    add_tag_to_list(BLACK_TAG, arg, NONE, list);
+    add_tag_to_list(globals, BLACK_TAG, arg, NONE, list);
     break;
   case 'd':
-    add_tag_to_list(DATE_TAG, arg, NONE, list);
+    add_tag_to_list(globals, DATE_TAG, arg, NONE, list);
     break;
   case 'e':
-    add_tag_to_list(ECO_TAG, arg, NONE, list);
+    add_tag_to_list(globals, ECO_TAG, arg, NONE, list);
     break;
   case 'f':
-    add_tag_to_list(FEN_TAG, arg, NONE, list);
+    add_tag_to_list(globals, FEN_TAG, arg, NONE, list);
     break;
   case 'h':
-    add_tag_to_list(HASHCODE_TAG, arg, NONE, list);
+    add_tag_to_list(globals, HASHCODE_TAG, arg, NONE, list);
     break;
   case 'p':
-    add_tag_to_list(PSEUDO_PLAYER_TAG, arg, NONE, list);
+    add_tag_to_list(globals, PSEUDO_PLAYER_TAG, arg, NONE, list);
     break;
   case 'r':
-    add_tag_to_list(RESULT_TAG, arg, NONE, list);
+    add_tag_to_list(globals, RESULT_TAG, arg, NONE, list);
     break;
   case 't':
-    add_tag_to_list(TIME_CONTROL_TAG, arg, NONE, list);
+    add_tag_to_list(globals, TIME_CONTROL_TAG, arg, NONE, list);
     break;
   case 'w':
-    add_tag_to_list(WHITE_TAG, arg, NONE, list);
+    add_tag_to_list(globals, WHITE_TAG, arg, NONE, list);
     break;
   default:
-    fprintf(GlobalState.logfile,
-            "Unknown type of tag extraction argument: %s\n", argstr);
+    fprintf(globals->logfile, "Unknown type of tag extraction argument: %s\n",
+            argstr);
     exit(1);
     break;
   }
 }
 
 /* Determine whether lhs operator rhs is true or false. */
-static bool relative_numeric_match(TagOperator operator, double lhs,
+static bool relative_numeric_match(const StateInfo *globals,
+                                   TagOperator operator, double lhs,
                                    double rhs) {
   switch (operator) {
   case LESS_THAN:
@@ -405,12 +408,12 @@ static bool relative_numeric_match(TagOperator operator, double lhs,
     /* Use a regular expression match. */
     return false;
   case NONE:
-    fprintf(GlobalState.logfile,
+    fprintf(globals->logfile,
             "Internal error: NONE in call to relative_numeric_match.\n");
     return false;
   default:
     fprintf(
-        GlobalState.logfile,
+        globals->logfile,
         "Internal error: missing case in call to relative_numeric_match.\n");
     return false;
   }
@@ -429,7 +432,8 @@ static bool relative_numeric_match(TagOperator operator, double lhs,
 #define MINDATE 100
 #define MAXDATE 3000
 
-static bool check_date(const char *date_string, const StringArray *list) {
+static bool check_date(const StateInfo *globals, const char *date_string,
+                       const StringArray *list) {
   unsigned list_index;
 
   /* Care needed because dates with operators must be ANDed and
@@ -463,8 +467,8 @@ static bool check_date(const char *date_string, const StringArray *list) {
             sscanf(list_string, "%*u.%u.%u", &list_month, &list_day);
             double encoded_list_date =
                 10000 * list_year + 100 * list_month + list_day;
-            bool matches = relative_numeric_match(operator, encoded_game_date,
-                                                  encoded_list_date);
+            bool matches = relative_numeric_match(
+                globals, operator, encoded_game_date, encoded_list_date);
             if (list_index == 0) {
               wanted = matches;
             } else {
@@ -482,7 +486,7 @@ static bool check_date(const char *date_string, const StringArray *list) {
           /* While this will give an error for each game, a bad date
            * in the list of tags to be matched needs reporting.
            */
-          fprintf(GlobalState.logfile, "Failed to extract year from %s.\n",
+          fprintf(globals->logfile, "Failed to extract year from %s.\n",
                   list_string);
         }
       } else {
@@ -498,7 +502,8 @@ static bool check_date(const char *date_string, const StringArray *list) {
 }
 
 /* Check whether the TimeControl value matches the requirements. */
-static bool check_time_control(const char *tc_string, const StringArray *list) {
+static bool check_time_control(const StateInfo *globals, const char *tc_string,
+                               const StringArray *list) {
   bool wanted = false;
   if (*tc_string == '\0' || *tc_string == '?' || *tc_string == '-') {
     /* Nothing to compare. */
@@ -513,13 +518,13 @@ static bool check_time_control(const char *tc_string, const StringArray *list) {
       /* Period+increment. */
       unsigned period;
       if (sscanf(control, "%u", &period) == 1) {
-        wanted = check_time_period(control, period, list);
+        wanted = check_time_period(globals, control, period, list);
       }
     } else if (*control == '*') {
       /* Sandclock. */
       unsigned period;
       if (sscanf(control + 1, "%u", &period) == 1) {
-        wanted = check_time_period(control, period, list);
+        wanted = check_time_period(globals, control, period, list);
       }
     } else {
       /* Look for the format moves/seconds. */
@@ -527,7 +532,7 @@ static bool check_time_control(const char *tc_string, const StringArray *list) {
       if (slash != NULL) {
         unsigned period;
         if (sscanf(slash + 1, "%u", &period) == 1) {
-          wanted = check_time_period(control, period, list);
+          wanted = check_time_period(globals, control, period, list);
         }
       } else if (isdigit((int)*control)) {
         /* Sudden death. */
@@ -538,7 +543,7 @@ static bool check_time_control(const char *tc_string, const StringArray *list) {
         if (*digit == '\0') {
           unsigned period;
           if (sscanf(control, "%u", &period) == 1) {
-            wanted = check_time_period(control, period, list);
+            wanted = check_time_period(globals, control, period, list);
           }
         }
       }
@@ -551,8 +556,8 @@ static bool check_time_control(const char *tc_string, const StringArray *list) {
 /* Compare the given time period against those provided for matches.
  * Return true if a match is found.
  */
-static bool check_time_period(const char *tag_string, unsigned period,
-                              const StringArray *list) {
+static bool check_time_period(const StateInfo *globals, const char *tag_string,
+                              unsigned period, const StringArray *list) {
   bool wanted = false;
   unsigned list_index;
   for (list_index = 0; (list_index < list->num_used_elements) && !wanted;
@@ -564,7 +569,7 @@ static bool check_time_period(const char *tag_string, unsigned period,
       /* We have a relational comparison. */
       unsigned list_period;
       if ((sscanf(list_string, "%u", &list_period) == 1)) {
-        wanted = relative_numeric_match(operator,(double) period,
+        wanted = relative_numeric_match(globals, operator,(double) period,
                                         (double)list_period);
       } else {
         /* Bad format. */
@@ -580,7 +585,8 @@ static bool check_time_period(const char *tag_string, unsigned period,
 }
 
 /* Check whether the Elo value matches those in the list. */
-static bool check_elo(const char *elo_string, StringArray *list) {
+static bool check_elo(const StateInfo *globals, const char *elo_string,
+                      StringArray *list) {
   unsigned game_elo;
   if (sscanf(elo_string, "%u", &game_elo) == 1) {
     /* Try relational matches first. All must be satisfied. */
@@ -598,7 +604,7 @@ static bool check_elo(const char *elo_string, StringArray *list) {
         unsigned list_elo;
         if ((sscanf(list_string, "%u", &list_elo) == 1)) {
           relational_operator_found = true;
-          wanted = relative_numeric_match(operator,(double) game_elo,
+          wanted = relative_numeric_match(globals, operator,(double) game_elo,
                                           (double)list_elo);
         }
       }
@@ -627,7 +633,8 @@ static bool check_elo(const char *elo_string, StringArray *list) {
 
 /* Check whether the difference in Elo values matches any of those in the list.
  */
-static bool check_elo_diff(const char *white_elo_string,
+static bool check_elo_diff(const StateInfo *globals,
+                           const char *white_elo_string,
                            const char *black_elo_string, StringArray *list) {
   int white_elo, black_elo;
   if (sscanf(white_elo_string, "%d", &white_elo) == 1 &&
@@ -653,15 +660,15 @@ static bool check_elo_diff(const char *white_elo_string,
           const char *list_string = selection->tag_string;
           double list_value;
           if (sscanf(list_string, "%lf", &list_value) == 1) {
-            wanted =
-                relative_numeric_match(selection->operator, diff, list_value);
+            wanted = relative_numeric_match(globals, selection->operator, diff,
+                                            list_value);
           }
         }
         break;
       case NONE:
         break;
       default:
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "Internal error: missing case in call to check_elo_diff.\n");
         break;
       }
@@ -679,8 +686,8 @@ static bool check_elo_diff(const char *white_elo_string,
  * in the tag if tag_match_anywhere is set.
  * For numeric tags with relational operators, ALL operators must match.
  */
-static bool check_list(int tag, const char *tag_string,
-                       const StringArray *list) {
+static bool check_list(const StateInfo *globals, int tag,
+                       const char *tag_string, const StringArray *list) {
   unsigned list_index;
   bool wanted;
   const char *search_str;
@@ -694,7 +701,7 @@ static bool check_list(int tag, const char *tag_string,
   bool possible_regex_check = false;
   const char *t;
 
-  if (GlobalState.use_soundex && soundex_tag(tag)) {
+  if (globals->use_soundex && soundex_tag(tag)) {
     search_str = soundex(tag_string);
   } else {
     search_str = tag_string;
@@ -723,7 +730,7 @@ static bool check_list(int tag, const char *tag_string,
     const char *list_string = selection->tag_string;
 
     if (selection->operator== NONE) {
-      if (GlobalState.tag_match_anywhere) {
+      if (globals->tag_match_anywhere) {
         /* Match anywhere in the tag. */
         if (strstr(search_str, list_string) != NULL) {
           wanted = true;
@@ -787,8 +794,8 @@ static bool check_list(int tag, const char *tag_string,
             double tag_value, list_value;
             if (sscanf(search_str, "%lf", &tag_value) == 1 &&
                 sscanf(list_string, "%lf", &list_value) == 1) {
-              wanted = relative_numeric_match(selection->operator, tag_value,
-                                              list_value);
+              wanted = relative_numeric_match(globals, selection->operator,
+                                              tag_value, list_value);
             }
           }
           break;
@@ -800,12 +807,12 @@ static bool check_list(int tag, const char *tag_string,
               double tag_value, list_value;
               if (sscanf(search_str, "%lf", &tag_value) == 1 &&
                   sscanf(list_string, "%lf", &list_value) == 1) {
-                wanted = relative_numeric_match(selection->operator, tag_value,
-                                                list_value);
+                wanted = relative_numeric_match(globals, selection->operator,
+                                                tag_value, list_value);
               }
             } else {
               wanted = (strcmp(search_str, list_string) != 0);
-              if (GlobalState.tag_match_anywhere) {
+              if (globals->tag_match_anywhere) {
                 /* Match anywhere in the tag. */
                 wanted = strstr(search_str, list_string) == NULL;
               } else {
@@ -823,7 +830,7 @@ static bool check_list(int tag, const char *tag_string,
           /* Already tried. */
           break;
         default:
-          fprintf(GlobalState.logfile,
+          fprintf(globals->logfile,
                   "Internal error: missing case in call to check_list.\n");
           break;
         }
@@ -854,12 +861,12 @@ static bool all_negative_matches(const StringArray *list) {
  * games reaching this far are wanted.
  * Return true if wanted, false otherwise.
  */
-bool check_tag_details_not_ECO(char *Details[], int num_details,
-                               bool positive_match) {
+bool check_tag_details_not_ECO(const StateInfo *globals, char *Details[],
+                               int num_details, bool positive_match) {
   bool wanted = true;
   int tag;
 
-  if (GlobalState.check_tags) {
+  if (globals->check_tags) {
     TagList *list;
     if (positive_match) {
       list = &positive_tags;
@@ -868,9 +875,9 @@ bool check_tag_details_not_ECO(char *Details[], int num_details,
     }
     /* Sanity check. */
     if (num_details < list->list_length) {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "Internal error: mismatch in tag set lengths in ");
-      fprintf(GlobalState.logfile, "CheckTagDetailsNotECO: %d vs %d\n",
+      fprintf(globals->logfile, "CheckTagDetailsNotECO: %d vs %d\n",
               num_details, list->list_length);
       exit(1);
     }
@@ -882,15 +889,15 @@ bool check_tag_details_not_ECO(char *Details[], int num_details,
     if (list->list_of_tags[PSEUDO_PLAYER_TAG].num_used_elements != 0) {
       /* Check both the White and Black lists. */
       if (Details[WHITE_TAG] != NULL) {
-        wanted = check_list(WHITE_TAG, Details[WHITE_TAG],
+        wanted = check_list(globals, WHITE_TAG, Details[WHITE_TAG],
                             &list->list_of_tags[PSEUDO_PLAYER_TAG]);
         /* If we didn't find a player there, try for the opponent. */
         if (!wanted && (Details[BLACK_TAG] != NULL)) {
-          wanted = check_list(BLACK_TAG, Details[BLACK_TAG],
+          wanted = check_list(globals, BLACK_TAG, Details[BLACK_TAG],
                               &list->list_of_tags[PSEUDO_PLAYER_TAG]);
         }
       } else if (Details[BLACK_TAG] != NULL) {
-        wanted = check_list(BLACK_TAG, Details[BLACK_TAG],
+        wanted = check_list(globals, BLACK_TAG, Details[BLACK_TAG],
                             &list->list_of_tags[PSEUDO_PLAYER_TAG]);
       } else {
         wanted = false;
@@ -900,15 +907,15 @@ bool check_tag_details_not_ECO(char *Details[], int num_details,
     if (list->list_of_tags[PSEUDO_ELO_TAG].num_used_elements != 0) {
       /* Check both the White and Black lists. */
       if (Details[WHITE_ELO_TAG] != NULL) {
-        wanted = check_elo(Details[WHITE_ELO_TAG],
+        wanted = check_elo(globals, Details[WHITE_ELO_TAG],
                            &list->list_of_tags[PSEUDO_ELO_TAG]);
         /* If we didn't find the ELO there, try for the opponent. */
         if (!wanted && (Details[BLACK_ELO_TAG] != NULL)) {
-          wanted = check_elo(Details[BLACK_ELO_TAG],
+          wanted = check_elo(globals, Details[BLACK_ELO_TAG],
                              &list->list_of_tags[PSEUDO_ELO_TAG]);
         }
       } else if (Details[BLACK_ELO_TAG] != NULL) {
-        wanted = check_elo(Details[BLACK_ELO_TAG],
+        wanted = check_elo(globals, Details[BLACK_ELO_TAG],
                            &list->list_of_tags[PSEUDO_ELO_TAG]);
       } else {
         wanted = false;
@@ -921,7 +928,8 @@ bool check_tag_details_not_ECO(char *Details[], int num_details,
         list->list_of_tags[PSEUDO_ELO_DIFF_TAG].num_used_elements != 0) {
       /* Calculate the difference between the Elo values. */
       if (Details[WHITE_ELO_TAG] != NULL && Details[BLACK_ELO_TAG] != NULL) {
-        wanted = check_elo_diff(Details[WHITE_ELO_TAG], Details[BLACK_ELO_TAG],
+        wanted = check_elo_diff(globals, Details[WHITE_ELO_TAG],
+                                Details[BLACK_ELO_TAG],
                                 &list->list_of_tags[PSEUDO_ELO_DIFF_TAG]);
       } else {
         wanted = false;
@@ -940,14 +948,16 @@ bool check_tag_details_not_ECO(char *Details[], int num_details,
       } else if (list->list_of_tags[tag].num_used_elements != 0) {
         if (Details[tag] != NULL) {
           if (tag == DATE_TAG) {
-            wanted = check_date(Details[tag], &list->list_of_tags[DATE_TAG]);
+            wanted = check_date(globals, Details[tag],
+                                &list->list_of_tags[DATE_TAG]);
           } else if ((tag == WHITE_ELO_TAG) || (tag == BLACK_ELO_TAG)) {
-            wanted = check_elo(Details[tag], &list->list_of_tags[tag]);
+            wanted = check_elo(globals, Details[tag], &list->list_of_tags[tag]);
           } else if (tag == TIME_CONTROL_TAG) {
-            wanted = check_time_control(Details[tag],
+            wanted = check_time_control(globals, Details[tag],
                                         &list->list_of_tags[TIME_CONTROL_TAG]);
           } else {
-            wanted = check_list(tag, Details[tag], &list->list_of_tags[tag]);
+            wanted = check_list(globals, tag, Details[tag],
+                                &list->list_of_tags[tag]);
           }
         } else {
           /* Matching tag not present.
@@ -968,15 +978,16 @@ bool check_tag_details_not_ECO(char *Details[], int num_details,
 }
 
 /* Check just the ECO tag from the game's tag details. */
-bool check_ECO_tag(char *Details[], bool positive_match) {
+bool check_ECO_tag(const StateInfo *globals, char *Details[],
+                   bool positive_match) {
   bool wanted = true;
 
-  if (GlobalState.check_tags) {
+  if (globals->check_tags) {
     TagList *list = positive_match ? &positive_tags : &negative_tags;
     if (list->list_of_tags[ECO_TAG].num_used_elements != 0) {
       if (Details[ECO_TAG] != NULL) {
-        wanted =
-            check_list(ECO_TAG, Details[ECO_TAG], &list->list_of_tags[ECO_TAG]);
+        wanted = check_list(globals, ECO_TAG, Details[ECO_TAG],
+                            &list->list_of_tags[ECO_TAG]);
       } else {
         /* Required tag not present. */
         wanted = false;
@@ -986,13 +997,13 @@ bool check_ECO_tag(char *Details[], bool positive_match) {
   return wanted;
 }
 
-/* Check whether the tags fit with the setting of GlobalState.setup_status.
+/* Check whether the tags fit with the setting of globals->setup_status.
  * Return true if they do, false otherwise.
  * @@@ NB: The positive/negative matching here doesn't fit with a single
  * setup_status.
  */
-bool check_setup_tag(char *Details[]) {
-  switch (GlobalState.setup_status) {
+bool check_setup_tag(const StateInfo *globals, char *Details[]) {
+  switch (globals->setup_status) {
   case SETUP_TAG_OK:
     return true;
   case NO_SETUP_TAG:
@@ -1000,9 +1011,8 @@ bool check_setup_tag(char *Details[]) {
   case SETUP_TAG_ONLY:
     return Details[SETUP_TAG] != NULL;
   default:
-    fprintf(GlobalState.logfile,
-            "Internal error: setup status %u not recognised.",
-            GlobalState.setup_status);
+    fprintf(globals->logfile, "Internal error: setup status %u not recognised.",
+            globals->setup_status);
     exit(1);
   }
 }

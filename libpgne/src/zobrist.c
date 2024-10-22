@@ -38,7 +38,6 @@
 
 #include "zobrist.h"
 
-#include "apply.h"
 #include "decode.h"
 #include "defs.h"
 #include "grammar.h"
@@ -359,7 +358,8 @@ uint64_t piece_hash(char piece, int rank, int col) {
  *        move number.
  * @@@ NB: Chess960 not currently dealt with. Return 0 if encountered.
  */
-uint64_t generate_zobrist_hash_from_fen(const char *fen) {
+uint64_t generate_zobrist_hash_from_fen(const StateInfo *globals,
+                                        const char *fen) {
   Rank rank = LASTRANK;
   Col col = FIRSTCOL;
   const char *fen_char = fen;
@@ -564,9 +564,9 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
     } else {
     }
     if (chess960) {
-      fprintf(GlobalState.logfile, "Chess960 castling notation not supported "
-                                   "in generating a hashcode.\n");
-      report_details(GlobalState.logfile);
+      fprintf(globals->logfile, "Chess960 castling notation not supported "
+                                "in generating a hashcode.\n");
+      report_details(globals->logfile);
       Ok = false;
     }
   }
@@ -665,9 +665,8 @@ uint64_t generate_zobrist_hash_from_fen(const char *fen) {
 #endif
 
   if (!Ok) {
-    fprintf(GlobalState.logfile, "Illegal FEN string %s at %s\n", fen,
-            fen_char);
-    report_details(GlobalState.logfile);
+    fprintf(globals->logfile, "Illegal FEN string %s at %s\n", fen, fen_char);
+    report_details(globals->logfile);
   }
   if (Ok) {
     return hash;

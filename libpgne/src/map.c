@@ -21,16 +21,12 @@
 
 #include "map.h"
 
-#include "apply.h"
 #include "decode.h"
 #include "defs.h"
 #include "lex.h"
 #include "mymalloc.h"
-#include "taglist.h"
-#include "tokens.h"
 #include "typedef.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1125,7 +1121,8 @@ static bool pawn_move(Move *move_details, Colour colour, Board *board) {
 }
 
 /* Make a pawn move that involves an explicit promotion to promoted_piece. */
-static bool promote(Move *move_details, Colour colour, Board *board) {
+static bool promote(const StateInfo *globals, Move *move_details, Colour colour,
+                    Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1144,7 +1141,7 @@ static bool promote(Move *move_details, Colour colour, Board *board) {
   /* Now check that to_rank makes sense for the given colour. */
   if (((colour == WHITE) && (to_rank != LASTRANK)) ||
       ((colour == BLACK) && (to_rank != FIRSTRANK))) {
-    fprintf(GlobalState.logfile, "Illegal pawn promotion to %c%c\n", to_col,
+    fprintf(globals->logfile, "Illegal pawn promotion to %c%c\n", to_col,
             to_rank);
   } else {
     move_list =
@@ -1161,12 +1158,12 @@ static bool promote(Move *move_details, Colour colour, Board *board) {
         move_details->to_rank = move_list->to_rank;
         Ok = true;
       } else {
-        fprintf(GlobalState.logfile, "Ambiguous pawn move to %c%c\n", to_col,
+        fprintf(globals->logfile, "Ambiguous pawn move to %c%c\n", to_col,
                 to_rank);
       }
       free_move_pair_list(move_list);
     } else {
-      fprintf(GlobalState.logfile, "Illegal pawn promotion to %c%c\n", to_col,
+      fprintf(globals->logfile, "Illegal pawn promotion to %c%c\n", to_col,
               to_rank);
     }
   }
@@ -1176,7 +1173,8 @@ static bool promote(Move *move_details, Colour colour, Board *board) {
 /* Make a knight move, indicated by move_details.
  * This may result in further information being added to move_details.
  */
-static bool knight_move(Move *move_details, Colour colour, Board *board) {
+static bool knight_move(const StateInfo *globals, Move *move_details,
+                        Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1191,7 +1189,7 @@ static bool knight_move(Move *move_details, Colour colour, Board *board) {
       exclude_moves(KNIGHT, colour, from_col, from_rank, move_list, board);
 
   if (move_list == NULL) {
-    fprintf(GlobalState.logfile, "No knight move possible to %c%c.\n", to_col,
+    fprintf(globals->logfile, "No knight move possible to %c%c.\n", to_col,
             to_rank);
     Ok = false;
   } else if (move_list->next == NULL) {
@@ -1203,13 +1201,13 @@ static bool knight_move(Move *move_details, Colour colour, Board *board) {
       move_details->from_col = move_list->from_col;
       move_details->from_rank = move_list->from_rank;
     } else {
-      fprintf(GlobalState.logfile,
-              "Knight destination square %c%c is illegal.\n", to_col, to_rank);
+      fprintf(globals->logfile, "Knight destination square %c%c is illegal.\n",
+              to_col, to_rank);
       Ok = false;
     }
     free_move_pair(move_list);
   } else {
-    fprintf(GlobalState.logfile, "Ambiguous knight move to %c%c.\n", to_col,
+    fprintf(globals->logfile, "Ambiguous knight move to %c%c.\n", to_col,
             to_rank);
     free_move_pair_list(move_list);
     Ok = false;
@@ -1220,7 +1218,8 @@ static bool knight_move(Move *move_details, Colour colour, Board *board) {
 /* Make a bishop move, indicated by move_details.
  * This may result in further information being added to move_details.
  */
-static bool bishop_move(Move *move_details, Colour colour, Board *board) {
+static bool bishop_move(const StateInfo *globals, Move *move_details,
+                        Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1235,7 +1234,7 @@ static bool bishop_move(Move *move_details, Colour colour, Board *board) {
       exclude_moves(BISHOP, colour, from_col, from_rank, move_list, board);
 
   if (move_list == NULL) {
-    fprintf(GlobalState.logfile, "No bishop move possible to %c%c.\n", to_col,
+    fprintf(globals->logfile, "No bishop move possible to %c%c.\n", to_col,
             to_rank);
     Ok = false;
   } else if (move_list->next == NULL) {
@@ -1247,14 +1246,14 @@ static bool bishop_move(Move *move_details, Colour colour, Board *board) {
       move_details->from_col = move_list->from_col;
       move_details->from_rank = move_list->from_rank;
     } else {
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "Bishop's destination square %c%c is illegal.\n", to_col,
               to_rank);
       Ok = false;
     }
     free_move_pair(move_list);
   } else {
-    fprintf(GlobalState.logfile, "Ambiguous bishop move to %c%c.\n", to_col,
+    fprintf(globals->logfile, "Ambiguous bishop move to %c%c.\n", to_col,
             to_rank);
     free_move_pair_list(move_list);
     Ok = false;
@@ -1265,7 +1264,8 @@ static bool bishop_move(Move *move_details, Colour colour, Board *board) {
 /* Make a rook move, indicated by move_details.
  * This may result in further information being added to move_details.
  */
-static bool rook_move(Move *move_details, Colour colour, Board *board) {
+static bool rook_move(const StateInfo *globals, Move *move_details,
+                      Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1277,7 +1277,7 @@ static bool rook_move(Move *move_details, Colour colour, Board *board) {
   bool Ok = true;
 
   if (move_list == NULL) {
-    fprintf(GlobalState.logfile, "No rook move possible to %c%c.\n", to_col,
+    fprintf(globals->logfile, "No rook move possible to %c%c.\n", to_col,
             to_rank);
     Ok = false;
   } else {
@@ -1285,7 +1285,7 @@ static bool rook_move(Move *move_details, Colour colour, Board *board) {
         exclude_moves(ROOK, colour, from_col, from_rank, move_list, board);
 
     if (move_list == NULL) {
-      fprintf(GlobalState.logfile, "Indicated rook move is excluded.\n");
+      fprintf(globals->logfile, "Indicated rook move is excluded.\n");
       Ok = false;
     } else if (move_list->next == NULL) {
       /* Only one possible.  Check for legality. */
@@ -1296,14 +1296,14 @@ static bool rook_move(Move *move_details, Colour colour, Board *board) {
         move_details->from_col = move_list->from_col;
         move_details->from_rank = move_list->from_rank;
       } else {
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "Rook's destination square %c%c is illegal.\n", to_col,
                 to_rank);
         Ok = false;
       }
       free_move_pair(move_list);
     } else {
-      fprintf(GlobalState.logfile, "Ambiguous rook move to %c%c.\n", to_col,
+      fprintf(globals->logfile, "Ambiguous rook move to %c%c.\n", to_col,
               to_rank);
       free_move_pair_list(move_list);
       Ok = false;
@@ -1315,7 +1315,8 @@ static bool rook_move(Move *move_details, Colour colour, Board *board) {
 /* Find a queen move indicated by move_details.
  * This may result in further information being added to move_details.
  */
-static bool queen_move(Move *move_details, Colour colour, Board *board) {
+static bool queen_move(const StateInfo *globals, Move *move_details,
+                       Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1330,7 +1331,7 @@ static bool queen_move(Move *move_details, Colour colour, Board *board) {
       exclude_moves(QUEEN, colour, from_col, from_rank, move_list, board);
 
   if (move_list == NULL) {
-    fprintf(GlobalState.logfile, "No queen move possible to %c%c.\n", to_col,
+    fprintf(globals->logfile, "No queen move possible to %c%c.\n", to_col,
             to_rank);
     Ok = false;
   } else if (move_list->next == NULL) {
@@ -1342,13 +1343,13 @@ static bool queen_move(Move *move_details, Colour colour, Board *board) {
       move_details->from_col = move_list->from_col;
       move_details->from_rank = move_list->from_rank;
     } else {
-      fprintf(GlobalState.logfile,
-              "Queen's destination square %c%c is illegal.\n", to_col, to_rank);
+      fprintf(globals->logfile, "Queen's destination square %c%c is illegal.\n",
+              to_col, to_rank);
       Ok = false;
     }
     free_move_pair(move_list);
   } else {
-    fprintf(GlobalState.logfile, "Ambiguous queen move to %c%c.\n", to_col,
+    fprintf(globals->logfile, "Ambiguous queen move to %c%c.\n", to_col,
             to_rank);
     free_move_pair_list(move_list);
     Ok = false;
@@ -1519,7 +1520,8 @@ static bool can_castle(MoveClass castling, Colour colour,
 }
 
 /* Castle king side. */
-static bool kingside_castle(Move *move_details, Colour colour, Board *board) {
+static bool kingside_castle(const StateInfo *globals, Move *move_details,
+                            Colour colour, Board *board) {
   bool Ok;
 
   if (can_castle(KINGSIDE_CASTLE, colour, board)) {
@@ -1535,14 +1537,15 @@ static bool kingside_castle(Move *move_details, Colour colour, Board *board) {
     move_details->to_rank = rank;
     Ok = true;
   } else {
-    fprintf(GlobalState.logfile, "Kingside castling is forbidden to %s.\n",
+    fprintf(globals->logfile, "Kingside castling is forbidden to %s.\n",
             colour == WHITE ? "White" : "Black");
     Ok = false;
   }
   return Ok;
 }
 
-static bool queenside_castle(Move *move_details, Colour colour, Board *board) {
+static bool queenside_castle(const StateInfo *globals, Move *move_details,
+                             Colour colour, Board *board) {
   bool Ok;
 
   if (can_castle(QUEENSIDE_CASTLE, colour, board)) {
@@ -1558,7 +1561,7 @@ static bool queenside_castle(Move *move_details, Colour colour, Board *board) {
     move_details->to_rank = rank;
     Ok = true;
   } else {
-    fprintf(GlobalState.logfile, "Queenside castling is forbidden to %s.\n",
+    fprintf(globals->logfile, "Queenside castling is forbidden to %s.\n",
             colour == WHITE ? "White" : "Black");
     Ok = false;
   }
@@ -1568,7 +1571,8 @@ static bool queenside_castle(Move *move_details, Colour colour, Board *board) {
 /* Move the king according to move_details.
  * This may result in further information being added to move_details.
  */
-static bool king_move(Move *move_details, Colour colour, Board *board) {
+static bool king_move(const StateInfo *globals, Move *move_details,
+                      Colour colour, Board *board) {
   Col from_col = move_details->from_col;
   Rank from_rank = move_details->from_rank;
   Col to_col = move_details->to_col;
@@ -1579,7 +1583,7 @@ static bool king_move(Move *move_details, Colour colour, Board *board) {
   bool Ok = true;
 
   if (move_list == NULL) {
-    fprintf(GlobalState.logfile, "No king move possible to %c%c.\n", to_col,
+    fprintf(globals->logfile, "No king move possible to %c%c.\n", to_col,
             to_rank);
     Ok = false;
   } else {
@@ -1601,10 +1605,10 @@ static bool king_move(Move *move_details, Colour colour, Board *board) {
       }
       if (kingside) {
         move_details->class = KINGSIDE_CASTLE;
-        Ok = kingside_castle(move_details, colour, board);
+        Ok = kingside_castle(globals, move_details, colour, board);
       } else {
         move_details->class = QUEENSIDE_CASTLE;
-        Ok = queenside_castle(move_details, colour, board);
+        Ok = queenside_castle(globals, move_details, colour, board);
       }
     } else {
       /* Exclude disambiguated and illegal moves. */
@@ -1612,7 +1616,7 @@ static bool king_move(Move *move_details, Colour colour, Board *board) {
           exclude_moves(KING, colour, from_col, from_rank, move_list, board);
 
       if (move_list == NULL) {
-        fprintf(GlobalState.logfile, "No king move possible to %c%c.\n", to_col,
+        fprintf(globals->logfile, "No king move possible to %c%c.\n", to_col,
                 to_rank);
         Ok = false;
       } else if (occupant == EMPTY) {
@@ -1622,7 +1626,7 @@ static bool king_move(Move *move_details, Colour colour, Board *board) {
         move_details->from_col = move_list->from_col;
         move_details->from_rank = move_list->from_rank;
       } else {
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "King's destination square %c%c is illegal.\n", to_col,
                 to_rank);
         Ok = false;
@@ -1649,16 +1653,17 @@ static bool king_move(Move *move_details, Colour colour, Board *board) {
  * program, for instance.
  * NB: this function does not determine whether or not the move gives check.
  */
-bool determine_move_details(Colour colour, Move *move_details, Board *board) {
+bool determine_move_details(const StateInfo *globals, Colour colour,
+                            Move *move_details, Board *board) {
   bool Ok = false;
 
   if (move_details == NULL) {
     /* Shouldn't happen. */
-    fprintf(GlobalState.logfile,
+    fprintf(globals->logfile,
             "Internal error: Empty move details in apply_move.\n");
   } else if (move_details->move[0] == '\0') {
     /* Shouldn't happen. */
-    fprintf(GlobalState.logfile,
+    fprintf(globals->logfile,
             "Internal error: Null move string in apply_move.\n");
   } else if (move_details->class == NULL_MOVE) {
     /* Non-standard PGN.
@@ -1734,8 +1739,7 @@ bool determine_move_details(Colour colour, Move *move_details, Board *board) {
           if (move[last_char] == 'b') {
             move_details->promoted_piece = BISHOP;
           } else {
-            fprintf(GlobalState.logfile, "Unknown piece in promotion %s\n",
-                    move);
+            fprintf(globals->logfile, "Unknown piece in promotion %s\n", move);
             move_details->promoted_piece = EMPTY;
           }
           break;
@@ -1757,7 +1761,7 @@ bool determine_move_details(Colour colour, Move *move_details, Board *board) {
         }
       } else if (class == PAWN_MOVE_WITH_PROMOTION) {
         /* Handle a move involving promotion. */
-        Ok = promote(move_details, colour, board);
+        Ok = promote(globals, move_details, colour, board);
         move_handled = true;
       } else {
         /* Shouldn't get here. */
@@ -1771,10 +1775,11 @@ bool determine_move_details(Colour colour, Move *move_details, Board *board) {
               strlen((char *)move_details->move) + 1);
           strcpy((char *)alternative_move, (const char *)move_details->move);
           *alternative_move = 'B';
-          Move *alternative = decode_move((unsigned char *)alternative_move);
+          Move *alternative =
+              decode_move(globals, (unsigned char *)alternative_move);
           (void)free((void *)alternative_move);
           if (alternative != NULL) {
-            Ok = bishop_move(alternative, colour, board);
+            Ok = bishop_move(globals, alternative, colour, board);
             if (Ok) {
               /* Copy the relevant details. */
               move_details->class = alternative->class;
@@ -1804,39 +1809,39 @@ bool determine_move_details(Colour colour, Move *move_details, Board *board) {
       case PIECE_MOVE:
         switch (move_details->piece_to_move) {
         case KING:
-          Ok = king_move(move_details, colour, board);
+          Ok = king_move(globals, move_details, colour, board);
           break;
         case QUEEN:
-          Ok = queen_move(move_details, colour, board);
+          Ok = queen_move(globals, move_details, colour, board);
           break;
         case ROOK:
-          Ok = rook_move(move_details, colour, board);
+          Ok = rook_move(globals, move_details, colour, board);
           break;
         case KNIGHT:
-          Ok = knight_move(move_details, colour, board);
+          Ok = knight_move(globals, move_details, colour, board);
           break;
         case BISHOP:
-          Ok = bishop_move(move_details, colour, board);
+          Ok = bishop_move(globals, move_details, colour, board);
           break;
         default:
           Ok = false;
-          fprintf(GlobalState.logfile, "Unknown piece move %s\n", move);
+          fprintf(globals->logfile, "Unknown piece move %s\n", move);
           break;
         }
         break;
       case KINGSIDE_CASTLE:
         move_details->piece_to_move = KING;
-        Ok = kingside_castle(move_details, colour, board);
+        Ok = kingside_castle(globals, move_details, colour, board);
         break;
       case QUEENSIDE_CASTLE:
         move_details->piece_to_move = KING;
-        Ok = queenside_castle(move_details, colour, board);
+        Ok = queenside_castle(globals, move_details, colour, board);
         break;
       case UNKNOWN_MOVE:
         Ok = false;
         break;
       default:
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "Unknown move class in determine_move_details(%d).\n",
                 move_details->class);
         break;
@@ -2036,7 +2041,8 @@ static MovePair *generate_pawn_moves(Colour colour, const Board *board,
  * Excepted from this are the castling moves (not legal whilst in check)
  * and underpromotions (inadequate in thwarting a check).
  */
-bool king_is_in_checkmate(Colour colour, Board *board) {
+bool king_is_in_checkmate(const StateInfo *globals, Colour colour,
+                          Board *board) {
   Rank rank;
   Col col;
   MovePair *moves = NULL;
@@ -2071,7 +2077,7 @@ bool king_is_in_checkmate(Colour colour, Board *board) {
           break;
         default:
           fprintf(
-              GlobalState.logfile,
+              globals->logfile,
               "Internal error: unknown piece %d in king_is_in_checkmate().\n",
               piece);
         }
@@ -2131,7 +2137,7 @@ static unsigned approx_how_many_moves(Board *board) {
           break;
         default:
           fprintf(
-              GlobalState.logfile,
+              globals->logfile,
               "Internal error: unknown piece %d in king_is_in_checkmate().\n",
               piece);
         }
@@ -2152,7 +2158,8 @@ static unsigned approx_how_many_moves(Board *board) {
 #endif
 
 /* Find all moves for on the given board for colour. */
-MovePair *find_all_moves(const Board *board, Colour colour) {
+MovePair *find_all_moves(const StateInfo *globals, const Board *board,
+                         Colour colour) {
   Rank rank;
   Col col;
   /* All moves for colour. */
@@ -2211,7 +2218,7 @@ MovePair *find_all_moves(const Board *board, Colour colour) {
           break;
         default:
           fprintf(
-              GlobalState.logfile,
+              globals->logfile,
               "Internal error: unknown piece %d in king_is_in_checkmate().\n",
               piece);
         }
@@ -2233,7 +2240,8 @@ MovePair *find_all_moves(const Board *board, Colour colour) {
 }
 
 /* Return true if there is at least one move on the given board for colour. */
-bool at_least_one_move(const Board *board, Colour colour) {
+bool at_least_one_move(const StateInfo *globals, const Board *board,
+                       Colour colour) {
   bool move_found = false;
 
   /* Pick up each piece of the required colour. */
@@ -2288,7 +2296,7 @@ bool at_least_one_move(const Board *board, Colour colour) {
           break;
         default:
           fprintf(
-              GlobalState.logfile,
+              globals->logfile,
               "Internal error: unknown piece %d in king_is_in_checkmate().\n",
               piece);
         }

@@ -28,7 +28,6 @@
 #include "lines.h"
 #include "mymalloc.h"
 #include "taglist.h"
-#include "tokens.h"
 #include "typedef.h"
 
 #include <ctype.h>
@@ -117,8 +116,9 @@ static MaterialCriteria *new_ending_details(bool both_colours) {
   return details;
 }
 
-static const char *extract_combination(const char *p, Occurs *p_occurs,
-                                       int *p_number, const char *line) {
+static const char *extract_combination(const StateInfo *globals, const char *p,
+                                       Occurs *p_occurs, int *p_number,
+                                       const char *line) {
   bool Ok = true;
   Occurs occurs = EXACTLY;
   int number = 1;
@@ -128,7 +128,7 @@ static const char *extract_combination(const char *p, Occurs *p_occurs,
     number = *p - '0';
     p++;
     if (isdigit((int)*p)) {
-      fprintf(GlobalState.logfile, "Number > 9 is too big in %s.\n", line);
+      fprintf(globals->logfile, "Number > 9 is too big in %s.\n", line);
       while (isdigit((int)*p)) {
         p++;
       }
@@ -213,7 +213,8 @@ static const char *extract_combination(const char *p, Occurs *p_occurs,
  *        R= Rook occurs same number of times as opponent. (colour == BLACK)
  *        P1>= Exactly one pawn more than the opponent. (colour == BLACK)
  */
-static const char *extract_piece_information(const char *line,
+static const char *extract_piece_information(const StateInfo *globals,
+                                             const char *line,
                                              MaterialCriteria *details,
                                              Colour colour) {
   const char *p = line;
@@ -228,13 +229,13 @@ static const char *extract_piece_information(const char *line,
     if (piece != EMPTY) {
       /* Skip over the piece. */
       p++;
-      p = extract_combination(p, &occurs, &number, line);
+      p = extract_combination(globals, p, &occurs, &number, line);
       if (p != NULL) {
         if ((piece == KING) && (number != 1)) {
-          fprintf(GlobalState.logfile, "A king must occur exactly once.\n");
+          fprintf(globals->logfile, "A king must occur exactly once.\n");
           number = 1;
         } else if ((piece == PAWN) && (number > 8)) {
-          fprintf(GlobalState.logfile, "No more than 8 pawns are allowed.\n");
+          fprintf(globals->logfile, "No more than 8 pawns are allowed.\n");
           number = 8;
         }
         details->num_pieces[colour][piece] = number;
@@ -244,7 +245,7 @@ static const char *extract_piece_information(const char *line,
       }
     } else if (isalpha((int)*p) && (toupper((int)*p) == MINOR_PIECE)) {
       p++;
-      p = extract_combination(p, &occurs, &number, line);
+      p = extract_combination(globals, p, &occurs, &number, line);
       if (p != NULL) {
         details->num_minor_pieces[colour] = number;
         details->minor_occurs[colour] = occurs;
@@ -252,7 +253,7 @@ static const char *extract_piece_information(const char *line,
         Ok = false;
       }
     } else {
-      fprintf(GlobalState.logfile, "Unknown symbol at %s\n", p);
+      fprintf(globals->logfile, "Unknown symbol at %s\n", p);
       Ok = false;
     }
   }
@@ -265,12 +266,12 @@ static const char *extract_piece_information(const char *line,
           (details->occurs[colour][BISHOP] != EXACTLY) ||
           (details->num_pieces[colour][KNIGHT] > 0) ||
           (details->occurs[colour][KNIGHT] != EXACTLY)) {
-        fprintf(GlobalState.logfile,
+        fprintf(globals->logfile,
                 "Warning: the mixture of minor pieces in %s is not guaranteed "
                 "to work.\n",
                 line);
-        fprintf(GlobalState.logfile, "In a single set it is advisable to stick "
-                                     "to either L or B and/or N.\n");
+        fprintf(globals->logfile, "In a single set it is advisable to stick "
+                                  "to either L or B and/or N.\n");
       }
     }
     return p;
@@ -282,7 +283,8 @@ static const char *extract_piece_information(const char *line,
 /* Extract the piece specification from line and fill out
  * details with the pattern information.
  */
-static bool decompose_line(const char *line, MaterialCriteria *details) {
+static bool decompose_line(const StateInfo *globals, const char *line,
+                           MaterialCriteria *details) {
   const char *p = line;
   bool Ok = true;
 
@@ -312,13 +314,13 @@ static bool decompose_line(const char *line, MaterialCriteria *details) {
    * be included explicitly. If the second set consists of a lone
    * king then that can be omitted.
    */
-  p = extract_piece_information(p, details, WHITE);
+  p = extract_piece_information(globals, p, details, WHITE);
   if (p != NULL) {
     while ((*p != '\0') && (isspace((int)*p) || (*p == MATERIAL_CONSTRAINT))) {
       p++;
     }
     if (*p != '\0') {
-      p = extract_piece_information(p, details, BLACK);
+      p = extract_piece_information(globals, p, details, BLACK);
     } else {
       /* No explicit requirements for the other colour. */
       Piece piece;
@@ -350,8 +352,8 @@ static void reset_match_depths(MaterialCriteria *endings) {
 }
 
 /* Try to find a match for the given number of piece details. */
-static bool piece_match(int num_available, int num_to_find, int num_opponents,
-                        Occurs occurs) {
+static bool piece_match(const StateInfo *globals, int num_available,
+                        int num_to_find, int num_opponents, Occurs occurs) {
   bool match = false;
 
   switch (occurs) {
@@ -389,7 +391,7 @@ static bool piece_match(int num_available, int num_to_find, int num_opponents,
     match = (num_available - num_to_find) == num_opponents;
     break;
   default:
-    fprintf(GlobalState.logfile, "Inconsistent state %d in piece_match.\n",
+    fprintf(globals->logfile, "Inconsistent state %d in piece_match.\n",
             occurs);
     match = false;
   }
@@ -399,7 +401,8 @@ static bool piece_match(int num_available, int num_to_find, int num_opponents,
 /* Try to find a match against one player's pieces in the piece_set_colour
  * set of details_to_find.
  */
-static bool piece_set_match(const MaterialCriteria *details_to_find,
+static bool piece_set_match(const StateInfo *globals,
+                            const MaterialCriteria *details_to_find,
                             int num_pieces[2][NUM_PIECE_VALUES],
                             Colour game_colour, Colour piece_set_colour) {
   bool match = true;
@@ -414,7 +417,8 @@ static bool piece_set_match(const MaterialCriteria *details_to_find,
     int num_to_find = details_to_find->num_pieces[piece_set_colour][piece];
     Occurs occurs = details_to_find->occurs[piece_set_colour][piece];
 
-    match = piece_match(num_available, num_to_find, num_opponents, occurs);
+    match =
+        piece_match(globals, num_available, num_to_find, num_opponents, occurs);
     if (!match) {
       if ((piece == KNIGHT) || (piece == BISHOP)) {
         minor_failure = true;
@@ -439,7 +443,8 @@ static bool piece_set_match(const MaterialCriteria *details_to_find,
       int num_opponents = num_pieces[OPPOSITE_COLOUR(game_colour)][BISHOP] +
                           num_pieces[OPPOSITE_COLOUR(game_colour)][KNIGHT];
 
-      match = piece_match(num_available, num_to_find, num_opponents, occurs);
+      match = piece_match(globals, num_available, num_to_find, num_opponents,
+                          occurs);
     } else if (minor_failure) {
       /* We actually failed with proper matching of individual minor
        * pieces, and no minor match fixup is possible.
@@ -459,18 +464,19 @@ static bool piece_set_match(const MaterialCriteria *details_to_find,
  * potential match would be missed. This could be considered
  * as a bug.
  */
-static bool material_match(MaterialCriteria *details_to_find,
+static bool material_match(const StateInfo *globals,
+                           MaterialCriteria *details_to_find,
                            int num_pieces[2][NUM_PIECE_VALUES],
                            Colour game_colour) {
   bool match = true;
   Colour piece_set_colour = WHITE;
 
-  match = piece_set_match(details_to_find, num_pieces, game_colour,
+  match = piece_set_match(globals, details_to_find, num_pieces, game_colour,
                           piece_set_colour);
   if (match) {
     game_colour = OPPOSITE_COLOUR(game_colour);
     piece_set_colour = OPPOSITE_COLOUR(piece_set_colour);
-    match = piece_set_match(details_to_find, num_pieces, game_colour,
+    match = piece_set_match(globals, details_to_find, num_pieces, game_colour,
                             piece_set_colour);
     /* Reset colour to its original value. */
     game_colour = OPPOSITE_COLOUR(game_colour);
@@ -520,7 +526,8 @@ static void extract_pieces_from_board(int num_pieces[2][NUM_PIECE_VALUES],
  * In other words, a position with the required balance
  * of pieces.
  */
-static bool look_for_material_match(Game *game_details) {
+static bool look_for_material_match(const StateInfo *globals,
+                                    Game *game_details) {
   bool game_ok = true;
   bool match_comment_added = false;
   Move *next_move = game_details->moves;
@@ -532,7 +539,7 @@ static bool look_for_material_match(Game *game_details) {
       /*     P  N  B  R  Q  K */
       {0, 0, 8, 2, 2, 2, 1, 1},
       {0, 0, 8, 2, 2, 2, 1, 1}};
-  Board *board = new_game_board(game_details->tags[FEN_TAG]);
+  Board *board = new_game_board(globals, game_details->tags[FEN_TAG]);
 
   if (game_details->tags[FEN_TAG] != NULL) {
     extract_pieces_from_board(num_pieces, board);
@@ -558,17 +565,19 @@ static bool look_for_material_match(Game *game_details) {
        * then we might miss a match because a full match takes several
        * separate individual match steps.
        */
-      white_matches = material_match(details_to_find, num_pieces, WHITE);
+      white_matches =
+          material_match(globals, details_to_find, num_pieces, WHITE);
       if (details_to_find->both_colours) {
-        black_matches = material_match(details_to_find, num_pieces, BLACK);
+        black_matches =
+            material_match(globals, details_to_find, num_pieces, BLACK);
       } else {
         black_matches = false;
       }
       if (white_matches || black_matches) {
         matches = true;
         /* See whether a matching comment is required. */
-        if (GlobalState.add_position_match_comments && !match_comment_added) {
-          CommentList *match_comment = create_match_comment(board);
+        if (globals->add_position_match_comments && !match_comment_added) {
+          CommentList *match_comment = create_match_comment(globals, board);
           if (move_for_comment != NULL) {
             append_comments_to_move(move_for_comment, match_comment);
           } else {
@@ -591,7 +600,7 @@ static bool look_for_material_match(Game *game_details) {
       end_of_game = true;
     } else if (*(next_move->move) != '\0') {
       /* Try the next position. */
-      if (apply_move(next_move, board)) {
+      if (apply_move(globals, next_move, board)) {
         /* Remove any captured pieces. */
         if (next_move->captured_piece != EMPTY) {
           num_pieces[OPPOSITE_COLOUR(colour)][next_move->captured_piece]--;
@@ -610,14 +619,14 @@ static bool look_for_material_match(Game *game_details) {
       }
     } else {
       /* An empty move. */
-      fprintf(GlobalState.logfile,
+      fprintf(globals->logfile,
               "Internal error: Empty move in look_for_material_match.\n");
       game_ok = false;
     }
   }
   (void)free((void *)board);
   if (game_ok && matches) {
-    if (GlobalState.add_match_tag) {
+    if (globals->add_match_tag) {
       game_details->tags[MATERIAL_MATCH_TAG] =
           copy_string(white_matches ? "White" : "Black");
     }
@@ -632,10 +641,10 @@ static bool look_for_material_match(Game *game_details) {
  * In other words, a position with the required balance
  * of pieces.
  */
-bool check_for_material_match(Game *game) {
+bool check_for_material_match(const StateInfo *globals, Game *game) {
   /* Match if there are no endings to match. */
   if (endings_to_match != NULL) {
-    return look_for_material_match(game);
+    return look_for_material_match(globals, game);
   } else {
     return true;
   }
@@ -644,7 +653,8 @@ bool check_for_material_match(Game *game) {
 /* Does the board's material match the constraints of details_to_find?
  * Return true if it does, false otherwise.
  */
-bool constraint_material_match(MaterialCriteria *details_to_find,
+bool constraint_material_match(const StateInfo *globals,
+                               MaterialCriteria *details_to_find,
                                const Board *board) {
   /* Only a single match position is required. */
   details_to_find->move_depth = 0;
@@ -653,11 +663,12 @@ bool constraint_material_match(MaterialCriteria *details_to_find,
 
   int num_pieces[2][NUM_PIECE_VALUES];
   extract_pieces_from_board(num_pieces, board);
-  bool white_matches = material_match(details_to_find, num_pieces, WHITE);
+  bool white_matches =
+      material_match(globals, details_to_find, num_pieces, WHITE);
   bool black_matches;
 
   if (details_to_find->both_colours) {
-    black_matches = material_match(details_to_find, num_pieces, BLACK);
+    black_matches = material_match(globals, details_to_find, num_pieces, BLACK);
   } else {
     black_matches = false;
   }
@@ -674,7 +685,8 @@ bool constraint_material_match(MaterialCriteria *details_to_find,
  * is a constraint of a FEN pattern and should not be
  * retained as a separate material match.
  */
-MaterialCriteria *process_material_description(const char *line,
+MaterialCriteria *process_material_description(const StateInfo *globals,
+                                               const char *line,
                                                bool both_colours,
                                                bool pattern_constraint) {
   MaterialCriteria *details = NULL;
@@ -682,7 +694,7 @@ MaterialCriteria *process_material_description(const char *line,
   if (non_blank_line(line)) {
     details = new_ending_details(both_colours);
 
-    if (decompose_line(line, details)) {
+    if (decompose_line(globals, line, details)) {
       if (!pattern_constraint) {
         /* Add it on to the list. */
         details->next = endings_to_match;
@@ -697,17 +709,19 @@ MaterialCriteria *process_material_description(const char *line,
 }
 
 /* Read a file containing material matches. */
-bool build_endings(const char *infile, bool both_colours) {
+bool build_endings(const StateInfo *globals, const char *infile,
+                   bool both_colours) {
   FILE *fp = fopen(infile, "r");
   bool Ok = true;
 
   if (fp == NULL) {
-    fprintf(GlobalState.logfile, "Cannot open %s for reading.\n", infile);
+    fprintf(globals->logfile, "Cannot open %s for reading.\n", infile);
     exit(1);
   } else {
     char *line;
-    while ((line = read_line(fp)) != NULL) {
-      if (process_material_description(line, both_colours, false) == NULL) {
+    while ((line = read_line(globals, fp)) != NULL) {
+      if (process_material_description(globals, line, both_colours, false) ==
+          NULL) {
         Ok = false;
       }
       (void)free(line);

@@ -55,14 +55,16 @@ typedef struct PositionCount {
   struct PositionCount *next;
 } PositionCount;
 
-bool check_duplicate_setup(const Game *game_details);
-bool check_for_only_repetition(PositionCount *position_counts);
-void clear_duplicate_hash_table(void);
+bool check_duplicate_setup(const StateInfo *globals, const Game *game_details);
+bool check_for_only_repetition(const StateInfo *globals,
+                               PositionCount *position_counts);
+void clear_duplicate_hash_table(const StateInfo *globals);
 PositionCount *copy_position_count_list(PositionCount *original);
 void free_position_count_list(PositionCount *position_counts);
-void init_duplicate_hash_table(void);
+void init_duplicate_hash_table(const StateInfo *globals);
 PositionCount *new_position_count_list(const Board *board);
-const char *previous_occurance(Game game_details, unsigned plycount);
+const char *previous_occurance(const StateInfo *globals, Game game_details,
+                               unsigned plycount);
 unsigned update_position_counts(PositionCount *position_counts,
                                 const Board *board);
 

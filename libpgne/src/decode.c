@@ -35,8 +35,6 @@
 #include "defs.h"
 #include "lex.h"
 #include "mymalloc.h"
-#include "taglist.h"
-#include "tokens.h"
 #include "typedef.h"
 
 #include <stdio.h>
@@ -142,9 +140,9 @@ Move *new_move_structure(void) {
  * illegal moves having already been filtered out by the process
  * of lexical analysis.
  */
-Move *
-decode_move(const unsigned char *move_string) { /* The four components of the
-                                                   co-ordinates when known. */
+Move *decode_move(const StateInfo *globals,
+                  const unsigned char *move_string) { /* The four components of
+                               the co-ordinates when known. */
   Rank from_rank = 0, to_rank = 0;
   Col from_col = 0, to_col = 0;
   MoveClass class;
@@ -210,8 +208,8 @@ decode_move(const unsigned char *move_string) { /* The four components of the
           }
         }
       } else {
-        print_error_context(GlobalState.logfile);
-        fprintf(GlobalState.logfile, "Unknown pawn move %s.\n", move_string);
+        print_error_context(globals, globals->logfile);
+        fprintf(globals->logfile, "Unknown pawn move %s.\n", move_string);
         Ok = false;
       }
     }
@@ -255,8 +253,8 @@ decode_move(const unsigned char *move_string) { /* The four components of the
         }
       } else {
         Ok = false;
-        print_error_context(GlobalState.logfile);
-        fprintf(GlobalState.logfile, "Unknown piece move %s.\n", move_string);
+        print_error_context(globals, globals->logfile);
+        fprintf(globals->logfile, "Unknown piece move %s.\n", move_string);
       }
     } else {
       if (is_capture(*move)) {
@@ -270,14 +268,13 @@ decode_move(const unsigned char *move_string) { /* The four components of the
             move++;
           } else {
             Ok = false;
-            print_error_context(GlobalState.logfile);
-            fprintf(GlobalState.logfile, "Unknown piece move %s.\n",
-                    move_string);
+            print_error_context(globals, globals->logfile);
+            fprintf(globals->logfile, "Unknown piece move %s.\n", move_string);
           }
         } else {
           Ok = false;
-          print_error_context(GlobalState.logfile);
-          fprintf(GlobalState.logfile, "Unknown piece move %s.\n", move_string);
+          print_error_context(globals, globals->logfile);
+          fprintf(globals->logfile, "Unknown piece move %s.\n", move_string);
         }
       } else if (is_col(*move)) {
         col = *move;
@@ -303,8 +300,8 @@ decode_move(const unsigned char *move_string) { /* The four components of the
               move++;
             } else {
               Ok = false;
-              print_error_context(GlobalState.logfile);
-              fprintf(GlobalState.logfile, "Unknown piece move %s.\n",
+              print_error_context(globals, globals->logfile);
+              fprintf(globals->logfile, "Unknown piece move %s.\n",
                       move_string);
             }
           } else {
@@ -322,13 +319,13 @@ decode_move(const unsigned char *move_string) { /* The four components of the
           }
         } else {
           Ok = false;
-          print_error_context(GlobalState.logfile);
-          fprintf(GlobalState.logfile, "Unknown piece move %s.\n", move_string);
+          print_error_context(globals, globals->logfile);
+          fprintf(globals->logfile, "Unknown piece move %s.\n", move_string);
         }
       } else {
         Ok = false;
-        print_error_context(GlobalState.logfile);
-        fprintf(GlobalState.logfile, "Unknown piece move %s.\n", move_string);
+        print_error_context(globals, globals->logfile);
+        fprintf(globals->logfile, "Unknown piece move %s.\n", move_string);
       }
     }
   } else if (is_castling_character(*move)) {
@@ -350,15 +347,15 @@ decode_move(const unsigned char *move_string) { /* The four components of the
         class = KINGSIDE_CASTLE;
       }
     } else {
-      print_error_context(GlobalState.logfile);
-      fprintf(GlobalState.logfile, "Unknown castling move %s.\n", move_string);
+      print_error_context(globals, globals->logfile);
+      fprintf(globals->logfile, "Unknown castling move %s.\n", move_string);
       Ok = false;
     }
   } else if (strcmp((char *)move_string, NULL_MOVE_STRING) == 0) {
     class = NULL_MOVE;
   } else {
-    print_error_context(GlobalState.logfile);
-    fprintf(GlobalState.logfile, "Unknown move %s.\n", move_string);
+    print_error_context(globals, globals->logfile);
+    fprintf(globals->logfile, "Unknown move %s.\n", move_string);
     Ok = false;
   }
   if (Ok && class != NULL_MOVE) {
@@ -375,8 +372,8 @@ decode_move(const unsigned char *move_string) { /* The four components of the
       class = ENPASSANT_PAWN_MOVE;
     } else {
       Ok = false;
-      print_error_context(GlobalState.logfile);
-      fprintf(GlobalState.logfile, "Unknown text trailing move %s <%s>.\n",
+      print_error_context(globals, globals->logfile);
+      fprintf(globals->logfile, "Unknown text trailing move %s <%s>.\n",
               move_string, move);
     }
   }
