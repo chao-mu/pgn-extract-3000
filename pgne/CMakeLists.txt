@@ -8,7 +8,6 @@ set(EXEC_NAME pgn-extract)
 set(SOURCE_FILES
     src/apply.h
     src/globals.h
-    src/shim.c
     src/taglines.h
     src/defs.h
     src/map.h
