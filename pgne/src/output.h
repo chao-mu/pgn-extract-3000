@@ -27,9 +27,10 @@
 
 #include <stdbool.h>
 
-void format_game(const StateInfo *globals, Game *current_game,
-                 FILE *outputfile);
-void print_str(const StateInfo *globals, FILE *fp, const char *str);
+void format_game(const StateInfo *globals, GameHeader *game_header,
+                 Game *current_game, FILE *outputfile);
+void print_str(const StateInfo *globals, GameHeader *game_header, FILE *fp,
+               const char *str);
 void terminate_line(const StateInfo *globals, FILE *fp);
 OutputFormat which_output_format(const StateInfo *globals, const char *arg);
 const char *output_file_suffix(OutputFormat format);

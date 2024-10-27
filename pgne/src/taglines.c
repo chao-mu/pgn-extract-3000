@@ -42,16 +42,17 @@ static FILE *yyin = NULL;
  * EOF before yywrap() is called.
  * Be careful to leave lex in the right state.
  */
-void read_tag_file(StateInfo *globals, const char *TagFile,
-                   bool positive_match) {
+void read_tag_file(StateInfo *globals, GameHeader *game_header,
+                   const char *TagFile, bool positive_match) {
   yyin = fopen(TagFile, "r");
   if (yyin != NULL) {
     bool keep_reading = true;
 
     while (keep_reading) {
-      char *line = next_input_line(globals, yyin);
+      char *line = next_input_line(globals, game_header, yyin);
       if (line != NULL) {
-        keep_reading = process_tag_line(globals, TagFile, line, positive_match);
+        keep_reading = process_tag_line(globals, game_header, TagFile, line,
+                                        positive_match);
       } else {
         keep_reading = false;
       }
@@ -69,14 +70,15 @@ void read_tag_file(StateInfo *globals, const char *TagFile,
 /* Read the contents of a file that lists the
  * required output ordering for tags.
  */
-void read_tag_roster_file(StateInfo *globals, const char *RosterFile) {
+void read_tag_roster_file(StateInfo *globals, GameHeader *game_header,
+                          const char *RosterFile) {
   bool keep_reading = true;
   yyin = must_open_file(globals, RosterFile, "r");
 
   while (keep_reading) {
-    char *line = next_input_line(globals, yyin);
+    char *line = next_input_line(globals, game_header, yyin);
     if (line != NULL) {
-      keep_reading = process_roster_line(globals, line);
+      keep_reading = process_roster_line(globals, game_header, line);
     } else {
       keep_reading = false;
     }
@@ -89,13 +91,13 @@ void read_tag_roster_file(StateInfo *globals, const char *RosterFile) {
 /* Extract a tag/value pair from the given line.
  * Return true if this was successful.
  */
-bool process_tag_line(StateInfo *globals, const char *TagFile, char *line,
-                      bool positive_match) {
+bool process_tag_line(StateInfo *globals, GameHeader *game_header,
+                      const char *TagFile, char *line, bool positive_match) {
   bool keep_reading = true;
   if (non_blank_line(line)) {
     unsigned char *linep = (unsigned char *)line;
     /* We should find a tag. */
-    LinePair resulting_line = gather_tag(globals, line, linep);
+    LinePair resulting_line = gather_tag(globals, game_header, line, linep);
     TokenType tag_token;
 
     /* Pick up where we are now. */
@@ -169,7 +171,7 @@ bool process_tag_line(StateInfo *globals, const char *TagFile, char *line,
            * a positional match.
            */
           if (tag_index == FEN_TAG) {
-            add_fen_positional_match(globals, yylval.token_string);
+            add_fen_positional_match(globals, game_header, yylval.token_string);
             (void)free((void *)yylval.token_string);
           } else if (tag_index == PSEUDO_FEN_PATTERN_TAG ||
                      tag_index == PSEUDO_FEN_PATTERN_I_TAG) {
@@ -225,12 +227,13 @@ bool process_tag_line(StateInfo *globals, const char *TagFile, char *line,
 /* Extract a tag name from the given line.
  * Return true if this was successful.
  */
-bool process_roster_line(const StateInfo *globals, char *line) {
+bool process_roster_line(const StateInfo *globals, GameHeader *game_header,
+                         char *line) {
   bool keep_reading = true;
   if (non_blank_line(line)) {
     unsigned char *linep = (unsigned char *)line;
     /* We should find a tag. */
-    LinePair resulting_line = gather_tag(globals, line, linep);
+    LinePair resulting_line = gather_tag(globals, game_header, line, linep);
     TokenType tag_token;
 
     /* Pick up where we are now. */

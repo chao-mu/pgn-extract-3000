@@ -49,81 +49,84 @@ static unsigned RAV_level = 0;
 /* How often to report processing rate. */
 static unsigned PROGRESS_RATE = 1000;
 
-/* Retain details of the header of a game.
- * This comprises the Tags and any comment prefixing the
- * moves of the game.
- */
-static struct {
-  /* The tag values. */
-  char **Tags;
-  unsigned header_tags_length;
-  CommentList *prefix_comment;
-} GameHeader;
-
-static void parse_opt_game_list(StateInfo *globals, SourceFileType file_type);
-static bool parse_game(StateInfo *globals, Move **returned_move_list,
-                       unsigned long *start_line, unsigned long *end_line);
-bool parse_opt_tag_list(StateInfo *globals);
-bool parse_tag(StateInfo *globals);
-static Move *parse_move_list(StateInfo *globals);
-static Move *parse_move_and_variants(StateInfo *globals);
-static Move *parse_move(StateInfo *globals);
-static Move *parse_move_unit(StateInfo *globals);
-static CommentList *parse_opt_comment_list(StateInfo *globals);
-bool parse_opt_move_number(StateInfo *globals);
-static void parse_opt_NAG_list(StateInfo *globals, Move *move_details);
-static Variation *parse_opt_variant_list(StateInfo *globals);
-static Variation *parse_variant(StateInfo *globals);
-static char *parse_result(StateInfo *globals);
+static void parse_opt_game_list(StateInfo *globals, GameHeader *game_header,
+                                SourceFileType file_type);
+static bool parse_game(StateInfo *globals, GameHeader *game_header,
+                       Move **returned_move_list, unsigned long *start_line,
+                       unsigned long *end_line);
+bool parse_opt_tag_list(StateInfo *globals, GameHeader *game_header);
+bool parse_tag(StateInfo *globals, GameHeader *game_header);
+static Move *parse_move_list(StateInfo *globals, GameHeader *game_header);
+static Move *parse_move_and_variants(StateInfo *globals,
+                                     GameHeader *game_header);
+static Move *parse_move(StateInfo *globals, GameHeader *game_header);
+static Move *parse_move_unit(StateInfo *globals, GameHeader *game_header);
+static CommentList *parse_opt_comment_list(StateInfo *globals,
+                                           GameHeader *game_header);
+bool parse_opt_move_number(StateInfo *globals, GameHeader *game_header);
+static void parse_opt_NAG_list(StateInfo *globals, GameHeader *game_header,
+                               Move *move_details);
+static Variation *parse_opt_variant_list(StateInfo *globals,
+                                         GameHeader *game_header);
+static Variation *parse_variant(StateInfo *globals, GameHeader *game_header);
+static char *parse_result(StateInfo *globals, GameHeader *game_header);
 
 static void setup_for_new_game(void);
 static CommentList *append_comment(CommentList *item, CommentList *list);
 static void check_result(char **Tags, const char *terminating_result);
 static bool check_for_comments(const StateInfo *globals, const Game *game);
 static bool chess960_setup(Board *board);
-static void deal_with_ECO_line(const StateInfo *globals, Move *move_list);
-static void deal_with_game(StateInfo *globals, Move *move_list,
-                           unsigned long start_line, unsigned long end_line);
+static void deal_with_ECO_line(const StateInfo *globals,
+                               GameHeader *game_header, Move *move_list);
+static void deal_with_game(StateInfo *globals, GameHeader *game_header,
+                           Move *move_list, unsigned long start_line,
+                           unsigned long end_line);
 static bool finished_processing(const StateInfo *globals);
-static void free_tags(void);
+static void free_tags(GameHeader *game_header);
 static CommentList *merge_comment_lists(CommentList *prefix,
                                         CommentList *suffix);
-static void output_game(const StateInfo *globals, Game *game, FILE *outputfile);
-static void split_variants(const StateInfo *globals, Game *game,
-                           FILE *outputfile, unsigned depth);
+static void output_game(const StateInfo *globals, GameHeader *game_header,
+                        Game *game, FILE *outputfile);
+static void split_variants(const StateInfo *globals, GameHeader *game_header,
+                           Game *game, FILE *outputfile, unsigned depth);
 
 /* Initialise the game header structure to contain
  * space for the default number of tags.
  * The space will have to be increased if new tags are
  * identified in the program source.
  */
-void init_game_header(void) {
+GameHeader new_game_header() {
   unsigned i;
-  GameHeader.header_tags_length = ORIGINAL_NUMBER_OF_TAGS;
-  GameHeader.Tags = (char **)malloc_or_die(GameHeader.header_tags_length *
-                                           sizeof(*GameHeader.Tags));
-  for (i = 0; i < GameHeader.header_tags_length; i++) {
-    GameHeader.Tags[i] = (char *)NULL;
+  GameHeader game_header = {NULL, 0, NULL};
+
+  game_header.header_tags_length = ORIGINAL_NUMBER_OF_TAGS;
+  game_header.Tags = (char **)malloc_or_die(game_header.header_tags_length *
+                                            sizeof(*game_header.Tags));
+
+  for (i = 0; i < game_header.header_tags_length; i++) {
+    game_header.Tags[i] = (char *)NULL;
   }
-  GameHeader.prefix_comment = (CommentList *)NULL;
+
+  return game_header;
 }
 
 void increase_game_header_tags_length(const StateInfo *globals,
+                                      GameHeader *game_header,
                                       unsigned new_length) {
   unsigned i;
 
-  if (new_length <= GameHeader.header_tags_length) {
+  if (new_length <= game_header->header_tags_length) {
     fprintf(globals->logfile, "Internal error: inappropriate length %d ",
             new_length);
     fprintf(globals->logfile, " passed to increase_game_header_tags().\n");
     exit(1);
   }
-  GameHeader.Tags = (char **)realloc_or_die(
-      (void *)GameHeader.Tags, new_length * sizeof(*GameHeader.Tags));
-  for (i = GameHeader.header_tags_length; i < new_length; i++) {
-    GameHeader.Tags[i] = NULL;
+  game_header->Tags = (char **)realloc_or_die(
+      (void *)game_header->Tags, new_length * sizeof(*game_header->Tags));
+  for (i = game_header->header_tags_length; i < new_length; i++) {
+    game_header->Tags[i] = NULL;
   }
-  GameHeader.header_tags_length = new_length;
+  game_header->header_tags_length = new_length;
 }
 
 /* Try to open the given file. Error and exit on failure. */
@@ -142,23 +145,23 @@ FILE *must_open_file(const StateInfo *globals, const char *filename,
 /* Print out on outfp the current details and
  * terminate with a newline.
  */
-void report_details(FILE *outfp) {
-  if (GameHeader.Tags[WHITE_TAG] != NULL) {
-    fprintf(outfp, "%s - ", GameHeader.Tags[WHITE_TAG]);
+void report_details(GameHeader *game_header, FILE *outfp) {
+  if (game_header->Tags[WHITE_TAG] != NULL) {
+    fprintf(outfp, "%s - ", game_header->Tags[WHITE_TAG]);
   }
-  if (GameHeader.Tags[BLACK_TAG] != NULL) {
-    fprintf(outfp, "%s ", GameHeader.Tags[BLACK_TAG]);
-  }
-
-  if (GameHeader.Tags[EVENT_TAG] != NULL) {
-    fprintf(outfp, "%s ", GameHeader.Tags[EVENT_TAG]);
-  }
-  if (GameHeader.Tags[SITE_TAG] != NULL) {
-    fprintf(outfp, "%s ", GameHeader.Tags[SITE_TAG]);
+  if (game_header->Tags[BLACK_TAG] != NULL) {
+    fprintf(outfp, "%s ", game_header->Tags[BLACK_TAG]);
   }
 
-  if (GameHeader.Tags[DATE_TAG] != NULL) {
-    fprintf(outfp, "%s ", GameHeader.Tags[DATE_TAG]);
+  if (game_header->Tags[EVENT_TAG] != NULL) {
+    fprintf(outfp, "%s ", game_header->Tags[EVENT_TAG]);
+  }
+  if (game_header->Tags[SITE_TAG] != NULL) {
+    fprintf(outfp, "%s ", game_header->Tags[SITE_TAG]);
+  }
+
+  if (game_header->Tags[DATE_TAG] != NULL) {
+    fprintf(outfp, "%s ", game_header->Tags[DATE_TAG]);
   }
   putc('\n', outfp);
   fflush(outfp);
@@ -300,33 +303,34 @@ static bool in_game_number_range(unsigned long number, game_number *range) {
   return range != NULL && range->min <= number && number <= range->max;
 }
 
-static void parse_opt_game_list(StateInfo *globals, SourceFileType file_type) {
+static void parse_opt_game_list(StateInfo *globals, GameHeader *game_header,
+                                SourceFileType file_type) {
   Move *move_list = NULL;
   unsigned long start_line, end_line;
 
-  while (parse_game(globals, &move_list, &start_line, &end_line) &&
+  while (parse_game(globals, game_header, &move_list, &start_line, &end_line) &&
          !finished_processing(globals)) {
     if (file_type == NORMALFILE) {
-      deal_with_game(globals, move_list, start_line, end_line);
+      deal_with_game(globals, game_header, move_list, start_line, end_line);
     } else if (file_type == CHECKFILE) {
-      deal_with_game(globals, move_list, start_line, end_line);
+      deal_with_game(globals, game_header, move_list, start_line, end_line);
     } else if (file_type == ECOFILE) {
       if (move_list != NULL) {
-        deal_with_ECO_line(globals, move_list);
+        deal_with_ECO_line(globals, game_header, move_list);
       } else {
         fprintf(globals->logfile, "ECO line with zero moves.\n");
-        report_details(globals->logfile);
+        report_details(game_header, globals->logfile);
       }
     } else {
       /* Unknown type. */
-      free_tags();
-      free_move_list(move_list);
+      free_tags(game_header);
+      free_move_list(game_header, move_list);
     }
     move_list = NULL;
     setup_for_new_game();
   }
   if (move_list != NULL) {
-    free_move_list(move_list);
+    free_move_list(game_header, move_list);
   }
 }
 
@@ -334,8 +338,8 @@ static void parse_opt_game_list(StateInfo *globals, SourceFileType file_type) {
  * in returned_move_list.
  */
 static bool
-parse_game(StateInfo *globals, Move **returned_move_list,
-           unsigned long *start_line,
+parse_game(StateInfo *globals, GameHeader *game_header,
+           Move **returned_move_list, unsigned long *start_line,
            unsigned long *end_line) { /* bool something_found = false; */
   CommentList *prefix_comment;
   Move *move_list = NULL;
@@ -348,19 +352,19 @@ parse_game(StateInfo *globals, Move **returned_move_list,
   /* Assume that we won't return anything. */
   *returned_move_list = NULL;
   /* Skip over any junk between games. */
-  current_symbol = skip_to_next_game(globals, current_symbol);
-  prefix_comment = parse_opt_comment_list(globals);
+  current_symbol = skip_to_next_game(globals, game_header, current_symbol);
+  prefix_comment = parse_opt_comment_list(globals, game_header);
   if (prefix_comment != NULL) {
     /* Free this here, as it is hard to
      * know whether it belongs to the game or the file.
      * It is better to put game comments after the tags.
      */
     /* something_found = true; */
-    free_comment_list(prefix_comment);
+    free_comment_list(game_header, prefix_comment);
     prefix_comment = NULL;
   }
   *start_line = get_line_number();
-  if (parse_opt_tag_list(globals)) {
+  if (parse_opt_tag_list(globals, game_header)) {
     /* something_found = true; */
   }
 
@@ -369,18 +373,18 @@ parse_game(StateInfo *globals, Move **returned_move_list,
    * Silently delete it/them.
    */
   while (current_symbol == NAG) {
-    current_symbol = next_token(globals);
+    current_symbol = next_token(globals, game_header);
   }
 
   /* @@@ Beware of comments and/or tags without moves. */
-  move_list = parse_move_list(globals);
+  move_list = parse_move_list(globals, game_header);
 
   /* @@@ Look for a comment with no move text before the result. */
-  hanging_comment = parse_opt_comment_list(globals);
+  hanging_comment = parse_opt_comment_list(globals, game_header);
   /* Append this to the final move, if there is one. */
 
   /* Look for a result, even if there were no moves. */
-  result = parse_result(globals);
+  result = parse_result(globals, game_header);
   *end_line = get_line_number();
   if (move_list != NULL) {
     /* Find the last move. */
@@ -396,11 +400,11 @@ parse_game(StateInfo *globals, Move **returned_move_list,
     if (result != NULL) {
       /* Append it to the last move. */
       last_move->terminating_result = result;
-      check_result(GameHeader.Tags, result);
+      check_result(game_header->Tags, result);
       *returned_move_list = move_list;
     } else {
       fprintf(globals->logfile, "Missing result.\n");
-      report_details(globals->logfile);
+      report_details(game_header, globals->logfile);
     }
     /* something_found = true; */
   } else {
@@ -414,7 +418,7 @@ parse_game(StateInfo *globals, Move **returned_move_list,
      * When outputting a game, the missing result in this case
      * will have to be supplied from the tags.
      */
-    check_result(GameHeader.Tags, result);
+    check_result(game_header->Tags, result);
     if (result != NULL) {
       (void)free((void *)result);
     }
@@ -423,16 +427,16 @@ parse_game(StateInfo *globals, Move **returned_move_list,
   return current_symbol != EOF_TOKEN;
 }
 
-bool parse_opt_tag_list(StateInfo *globals) {
+bool parse_opt_tag_list(StateInfo *globals, GameHeader *game_header) {
   bool something_found = false;
   CommentList *prefix_comment;
 
-  while (parse_tag(globals)) {
+  while (parse_tag(globals, game_header)) {
     something_found = true;
   }
-  prefix_comment = parse_opt_comment_list(globals);
+  prefix_comment = parse_opt_comment_list(globals, game_header);
   if (prefix_comment != NULL) {
-    GameHeader.prefix_comment = prefix_comment;
+    game_header->prefix_comment = prefix_comment;
     something_found = true;
   }
   return something_found;
@@ -491,18 +495,18 @@ static bool chess960_setup(Board *board) {
   }
 }
 
-bool parse_tag(StateInfo *globals) {
+bool parse_tag(StateInfo *globals, GameHeader *game_header) {
   bool TagFound = true;
 
   if (current_symbol == TAG) {
     TagName tag_index = yylval.tag_index;
 
-    current_symbol = next_token(globals);
+    current_symbol = next_token(globals, game_header);
     if (current_symbol == STRING) {
       char *tag_string = yylval.token_string;
 
-      if (tag_index < GameHeader.header_tags_length) {
-        GameHeader.Tags[tag_index] = tag_string;
+      if (tag_index < game_header->header_tags_length) {
+        game_header->Tags[tag_index] = tag_string;
       } else {
         print_error_context(globals, globals->logfile);
         fprintf(globals->logfile,
@@ -510,13 +514,13 @@ bool parse_tag(StateInfo *globals) {
                 tag_string);
         exit(1);
       }
-      current_symbol = next_token(globals);
+      current_symbol = next_token(globals, game_header);
     } else {
       print_error_context(globals, globals->logfile);
       fprintf(globals->logfile, "Missing tag string.\n");
     }
     if (current_symbol == TAG_END) {
-      current_symbol = next_token(globals);
+      current_symbol = next_token(globals, game_header);
     } else {
       print_error_context(globals, globals->logfile);
       fprintf(globals->logfile, "Missing ]\n");
@@ -525,9 +529,9 @@ bool parse_tag(StateInfo *globals) {
     print_error_context(globals, globals->logfile);
     fprintf(globals->logfile, "Missing tag for %s.\n", yylval.token_string);
     (void)free((void *)yylval.token_string);
-    current_symbol = next_token(globals);
+    current_symbol = next_token(globals, game_header);
     if (current_symbol == TAG_END) {
-      current_symbol = next_token(globals);
+      current_symbol = next_token(globals, game_header);
     } else {
       /* No point reporting the error. */
     }
@@ -537,15 +541,16 @@ bool parse_tag(StateInfo *globals) {
   return TagFound;
 }
 
-static Move *parse_move_list(StateInfo *globals) {
+static Move *parse_move_list(StateInfo *globals, GameHeader *game_header) {
   Move *head = NULL, *tail = NULL;
 
-  head = parse_move_and_variants(globals);
+  head = parse_move_and_variants(globals, game_header);
   if (head != NULL) {
     Move *next_move;
 
     tail = head;
-    while ((next_move = parse_move_and_variants(globals)) != NULL) {
+    while ((next_move = parse_move_and_variants(globals, game_header)) !=
+           NULL) {
       tail->next = next_move;
       tail = next_move;
     }
@@ -553,15 +558,16 @@ static Move *parse_move_list(StateInfo *globals) {
   return head;
 }
 
-static Move *parse_move_and_variants(StateInfo *globals) {
+static Move *parse_move_and_variants(StateInfo *globals,
+                                     GameHeader *game_header) {
   Move *move_details;
 
-  move_details = parse_move(globals);
+  move_details = parse_move(globals, game_header);
   if (move_details != NULL) {
     CommentList *comment;
 
-    move_details->Variants = parse_opt_variant_list(globals);
-    comment = parse_opt_comment_list(globals);
+    move_details->Variants = parse_opt_variant_list(globals, game_header);
+    comment = parse_opt_comment_list(globals, game_header);
     if (comment != NULL) {
       move_details->comment_list =
           append_comment(comment, move_details->comment_list);
@@ -570,15 +576,15 @@ static Move *parse_move_and_variants(StateInfo *globals) {
   return move_details;
 }
 
-static Move *parse_move(StateInfo *globals) {
+static Move *parse_move(StateInfo *globals, GameHeader *game_header) {
   Move *move_details = NULL;
 
-  if (parse_opt_move_number(globals)) {
+  if (parse_opt_move_number(globals, game_header)) {
   }
   /* @@@ Watch out for finding just the number. */
-  move_details = parse_move_unit(globals);
+  move_details = parse_move_unit(globals, game_header);
   if (move_details != NULL) {
-    parse_opt_NAG_list(globals, move_details);
+    parse_opt_NAG_list(globals, game_header, move_details);
     /* Any trailing comments will have been picked up
      * and attached to the NAGs.
      */
@@ -586,7 +592,7 @@ static Move *parse_move(StateInfo *globals) {
   return move_details;
 }
 
-static Move *parse_move_unit(StateInfo *globals) {
+static Move *parse_move_unit(StateInfo *globals, GameHeader *game_header) {
   Move *move_details = NULL;
 
   if (current_symbol == MOVE) {
@@ -600,21 +606,22 @@ static Move *parse_move_unit(StateInfo *globals) {
       }
     }
 
-    current_symbol = next_token(globals);
+    current_symbol = next_token(globals, game_header);
     if (current_symbol == CHECK_SYMBOL) {
       strcat((char *)move_details->move, "+");
-      current_symbol = next_token(globals);
+      current_symbol = next_token(globals, game_header);
       /* Sometimes + is followed by #, so cover this case. */
       if (current_symbol == CHECK_SYMBOL) {
-        current_symbol = next_token(globals);
+        current_symbol = next_token(globals, game_header);
       }
     }
-    move_details->comment_list = parse_opt_comment_list(globals);
+    move_details->comment_list = parse_opt_comment_list(globals, game_header);
   }
   return move_details;
 }
 
-static CommentList *parse_opt_comment_list(StateInfo *globals) {
+static CommentList *parse_opt_comment_list(StateInfo *globals,
+                                           GameHeader *game_header) {
   CommentList *head = NULL, *tail = NULL;
 
   while (current_symbol == COMMENT) {
@@ -624,16 +631,16 @@ static CommentList *parse_opt_comment_list(StateInfo *globals) {
       tail->next = yylval.comment;
       tail = tail->next;
     }
-    current_symbol = next_token(globals);
+    current_symbol = next_token(globals, game_header);
   }
   return head;
 }
 
-bool parse_opt_move_number(StateInfo *globals) {
+bool parse_opt_move_number(StateInfo *globals, GameHeader *game_header) {
   bool something_found = false;
 
   if (current_symbol == MOVE_NUMBER) {
-    current_symbol = next_token(globals);
+    current_symbol = next_token(globals, game_header);
     something_found = true;
   }
   return something_found;
@@ -643,7 +650,8 @@ bool parse_opt_move_number(StateInfo *globals) {
  * Parse 0 or more NAGs, optionally followed by 0 or more comments.
  * @param move_details
  */
-static void parse_opt_NAG_list(StateInfo *globals, Move *move_details) {
+static void parse_opt_NAG_list(StateInfo *globals, GameHeader *game_header,
+                               Move *move_details) {
   while (current_symbol == NAG) {
     Nag *details = (Nag *)malloc_or_die(sizeof(*details));
     details->text = NULL;
@@ -651,9 +659,9 @@ static void parse_opt_NAG_list(StateInfo *globals, Move *move_details) {
     details->next = NULL;
     do {
       details->text = save_string_list_item(details->text, yylval.token_string);
-      current_symbol = next_token(globals);
+      current_symbol = next_token(globals, game_header);
     } while (current_symbol == NAG);
-    details->comments = parse_opt_comment_list(globals);
+    details->comments = parse_opt_comment_list(globals, game_header);
     if (move_details->NAGs == NULL) {
       move_details->NAGs = details;
     } else {
@@ -666,10 +674,11 @@ static void parse_opt_NAG_list(StateInfo *globals, Move *move_details) {
   }
 }
 
-static Variation *parse_opt_variant_list(StateInfo *globals) {
+static Variation *parse_opt_variant_list(StateInfo *globals,
+                                         GameHeader *game_header) {
   Variation *head = NULL, *tail = NULL, *variation;
 
-  while ((variation = parse_variant(globals)) != NULL) {
+  while ((variation = parse_variant(globals, game_header)) != NULL) {
     if (head == NULL) {
       head = tail = variation;
     } else {
@@ -680,7 +689,7 @@ static Variation *parse_opt_variant_list(StateInfo *globals) {
   return head;
 }
 
-static Variation *parse_variant(StateInfo *globals) {
+static Variation *parse_variant(StateInfo *globals, GameHeader *game_header) {
   Variation *variation = NULL;
 
   if (current_symbol == RAV_START) {
@@ -692,9 +701,9 @@ static Variation *parse_variant(StateInfo *globals) {
     RAV_level++;
     variation = (Variation *)malloc_or_die(sizeof(Variation));
 
-    current_symbol = next_token(globals);
-    prefix_comment = parse_opt_comment_list(globals);
-    moves = parse_move_list(globals);
+    current_symbol = next_token(globals, game_header);
+    prefix_comment = parse_opt_comment_list(globals, game_header);
+    moves = parse_move_list(globals, game_header);
     if (moves == NULL) {
       print_error_context(globals, globals->logfile);
       fprintf(globals->logfile, "Missing move list in variation.\n");
@@ -706,7 +715,7 @@ static Variation *parse_variant(StateInfo *globals) {
           merge_comment_lists(prefix_comment, moves->comment_list);
       prefix_comment = NULL;
     }
-    result = parse_result(globals);
+    result = parse_result(globals, game_header);
     if ((result != NULL) && (moves != NULL)) {
       /* Find the last move, to which to append the terminating
        * result.
@@ -721,7 +730,7 @@ static Variation *parse_variant(StateInfo *globals) {
       /* Accept a comment after the result, but it will
        * be printed out preceding the result.
        */
-      trailing_comment = parse_opt_comment_list(globals);
+      trailing_comment = parse_opt_comment_list(globals, game_header);
       if (trailing_comment != NULL) {
         last_move->comment_list =
             append_comment(trailing_comment, last_move->comment_list);
@@ -731,12 +740,12 @@ static Variation *parse_variant(StateInfo *globals) {
     }
     if (current_symbol == RAV_END) {
       RAV_level--;
-      current_symbol = next_token(globals);
+      current_symbol = next_token(globals, game_header);
     } else {
       fprintf(globals->logfile, "Missing ')' to close variation.\n");
       print_error_context(globals, globals->logfile);
     }
-    suffix_comment = parse_opt_comment_list(globals);
+    suffix_comment = parse_opt_comment_list(globals, game_header);
     variation->prefix_comment = prefix_comment;
     variation->suffix_comment = suffix_comment;
     variation->moves = moves;
@@ -745,7 +754,7 @@ static Variation *parse_variant(StateInfo *globals) {
   return variation;
 }
 
-static char *parse_result(StateInfo *globals) {
+static char *parse_result(StateInfo *globals, GameHeader *game_header) {
   char *result = NULL;
 
   if (current_symbol == TERMINATING_RESULT) {
@@ -756,7 +765,7 @@ static char *parse_result(StateInfo *globals) {
        */
       current_symbol = NO_TOKEN;
     } else {
-      current_symbol = next_token(globals);
+      current_symbol = next_token(globals, game_header);
     }
   }
   return result;
@@ -767,14 +776,14 @@ static void setup_for_new_game(void) {
   RAV_level = 0;
 }
 
-/* Discard any data held in the GameHeader.Tags structure. */
-static void free_tags(void) {
+/* Discard any data held in the game_header->Tags structure. */
+static void free_tags(GameHeader *game_header) {
   unsigned tag;
 
-  for (tag = 0; tag < GameHeader.header_tags_length; tag++) {
-    if (GameHeader.Tags[tag] != NULL) {
-      free(GameHeader.Tags[tag]);
-      GameHeader.Tags[tag] = NULL;
+  for (tag = 0; tag < game_header->header_tags_length; tag++) {
+    if (game_header->Tags[tag] != NULL) {
+      free(game_header->Tags[tag]);
+      game_header->Tags[tag] = NULL;
     }
   }
 }
@@ -793,7 +802,7 @@ void free_string_list(StringList *list) {
   }
 }
 
-void free_comment_list(CommentList *comment_list) {
+void free_comment_list(GameHeader *game_header, CommentList *comment_list) {
   while (comment_list != NULL) {
     CommentList *this_comment = comment_list;
 
@@ -805,45 +814,45 @@ void free_comment_list(CommentList *comment_list) {
   }
 }
 
-static void free_variation(Variation *variation) {
+static void free_variation(GameHeader *game_header, Variation *variation) {
   Variation *next;
 
   while (variation != NULL) {
     next = variation;
     variation = variation->next;
     if (next->prefix_comment != NULL) {
-      free_comment_list(next->prefix_comment);
+      free_comment_list(game_header, next->prefix_comment);
     }
     if (next->suffix_comment != NULL) {
-      free_comment_list(next->suffix_comment);
+      free_comment_list(game_header, next->suffix_comment);
     }
     if (next->moves != NULL) {
-      (void)free_move_list(next->moves);
+      (void)free_move_list(game_header, next->moves);
     }
     (void)free((void *)next);
   }
 }
 
-static void free_NAG_list(Nag *nag_list) {
+static void free_NAG_list(GameHeader *game_header, Nag *nag_list) {
   while (nag_list != NULL) {
     Nag *nextNAG = nag_list->next;
     free_string_list(nag_list->text);
-    free_comment_list(nag_list->comments);
+    free_comment_list(game_header, nag_list->comments);
     (void)free((void *)nag_list);
     nag_list = nextNAG;
   }
 }
 
-void free_move_list(Move *move_list) {
+void free_move_list(GameHeader *game_header, Move *move_list) {
   Move *nextMove;
 
   while (move_list != NULL) {
     nextMove = move_list;
     move_list = move_list->next;
 
-    free_NAG_list(nextMove->NAGs);
-    free_comment_list(nextMove->comment_list);
-    free_variation(nextMove->Variants);
+    free_NAG_list(game_header, nextMove->NAGs);
+    free_comment_list(game_header, nextMove->comment_list);
+    free_variation(game_header, nextMove->Variants);
 
     if (nextMove->epd != NULL) {
       (void)free((void *)nextMove->epd);
@@ -897,7 +906,8 @@ StringList *save_string_list_item(StringList *list, const char *str) {
 /* Append any comments in Comment onto the end of
  * any associated with move.
  */
-void append_comments_to_move(Move *move, CommentList *comment) {
+void append_comments_to_move(GameHeader *game_header, Move *move,
+                             CommentList *comment) {
   if (comment != NULL) {
     move->comment_list = append_comment(comment, move->comment_list);
   }
@@ -937,7 +947,8 @@ static CommentList *merge_comment_lists(CommentList *prefix,
 }
 
 /* Check for consistency of any FEN-related tags. */
-static bool consistent_FEN_tags(const StateInfo *globals, Game *current_game) {
+static bool consistent_FEN_tags(const StateInfo *globals,
+                                GameHeader *game_header, Game *current_game) {
   bool consistent = true;
 
   if ((current_game->tags[SETUP_TAG] != NULL) &&
@@ -945,7 +956,7 @@ static bool consistent_FEN_tags(const StateInfo *globals, Game *current_game) {
     /* There must be a FEN_TAG to go with it. */
     if (current_game->tags[FEN_TAG] == NULL) {
       consistent = false;
-      report_details(globals->logfile);
+      report_details(game_header, globals->logfile);
       fprintf(globals->logfile, "Missing %s Tag to accompany %s Tag.\n",
               tag_header_string(globals, FEN_TAG),
               tag_header_string(globals, SETUP_TAG));
@@ -953,14 +964,15 @@ static bool consistent_FEN_tags(const StateInfo *globals, Game *current_game) {
     }
   }
   if (current_game->tags[FEN_TAG] != NULL) {
-    Board *board = new_fen_board(globals, current_game->tags[FEN_TAG]);
+    Board *board =
+        new_fen_board(globals, game_header, current_game->tags[FEN_TAG]);
     if (board != NULL) {
       /* There must be a SETUP_TAG to go with it. */
       if (current_game->tags[SETUP_TAG] == NULL) {
         // This is such a common problem that it makes
         // more sense just to silently correct it.
 #if 0
-                report_details(globals->logfile);
+                report_details(globals->logfile, game_header);
                 fprintf(globals->logfile,
                         "Missing %s Tag to accompany %s Tag.\n",
                         tag_header_string(SETUP_TAG),
@@ -977,7 +989,7 @@ static bool consistent_FEN_tags(const StateInfo *globals, Game *current_game) {
         /* Look for an initial position found in Chess 960. */
         if (chess960) {
           const char *missing_value = "chess 960";
-          report_details(globals->logfile);
+          report_details(game_header, globals->logfile);
           fprintf(globals->logfile,
                   "Missing %s Tag for non-standard setup; adding %s.\n",
                   tag_header_string(globals, VARIANT_TAG), missing_value);
@@ -989,7 +1001,7 @@ static bool consistent_FEN_tags(const StateInfo *globals, Game *current_game) {
            */
           if (!board->WKingCastle && !board->WQueenCastle &&
               !board->BKingCastle && !board->BQueenCastle) {
-            add_fen_castling(globals, current_game, board);
+            add_fen_castling(globals, game_header, current_game, board);
           }
         }
       } else if (chess960) {
@@ -1004,8 +1016,9 @@ static bool consistent_FEN_tags(const StateInfo *globals, Game *current_game) {
   return consistent;
 }
 
-static void deal_with_game(StateInfo *globals, Move *move_list,
-                           unsigned long start_line, unsigned long end_line) {
+static void deal_with_game(StateInfo *globals, GameHeader *game_header,
+                           Move *move_list, unsigned long start_line,
+                           unsigned long end_line) {
   Game current_game;
   /* We need a dummy argument for apply_move_list. */
   unsigned plycount;
@@ -1020,9 +1033,9 @@ static void deal_with_game(StateInfo *globals, Move *move_list,
   }
 
   /* Fill in the information currently known. */
-  current_game.tags = GameHeader.Tags;
-  current_game.tags_length = GameHeader.header_tags_length;
-  current_game.prefix_comment = GameHeader.prefix_comment;
+  current_game.tags = game_header->Tags;
+  current_game.tags_length = game_header->header_tags_length;
+  current_game.prefix_comment = game_header->prefix_comment;
   current_game.moves = move_list;
   current_game.moves_checked = false;
   current_game.moves_ok = false;
@@ -1053,16 +1066,16 @@ static void deal_with_game(StateInfo *globals, Move *move_list,
    * Therefore, check for the ECO tag only after everything else has
    * been checked.
    */
-  if (consistent_FEN_tags(globals, &current_game) &&
+  if (consistent_FEN_tags(globals, game_header, &current_game) &&
       check_tag_details_not_ECO(globals, current_game.tags,
                                 current_game.tags_length, true) &&
       check_setup_tag(globals, current_game.tags) &&
-      check_duplicate_setup(globals, &current_game) &&
-      apply_move_list(globals, &current_game, &plycount,
+      check_duplicate_setup(globals, game_header, &current_game) &&
+      apply_move_list(globals, game_header, &current_game, &plycount,
                       globals->depth_of_positional_search, true) &&
       check_move_bounds(globals, plycount) &&
       check_textual_variations(globals, &current_game) &&
-      check_for_material_match(globals, &current_game) &&
+      check_for_material_match(globals, game_header, &current_game) &&
       check_for_only_checkmate(globals, &current_game) &&
       check_for_only_repetition(globals, current_game.position_counts) &&
       check_ECO_tag(globals, current_game.tags, true) &&
@@ -1098,7 +1111,7 @@ static void deal_with_game(StateInfo *globals, Move *move_list,
           /* We are only checking. */
           if (globals->verbosity > 1) {
             /* Report progress on logfile. */
-            report_details(globals->logfile);
+            report_details(game_header, globals->logfile);
           }
         } else {
           output_the_game = true;
@@ -1122,26 +1135,27 @@ static void deal_with_game(StateInfo *globals, Move *move_list,
               /* Record which file this and succeeding
                * duplicates come from.
                */
-              print_str(globals, outputfile, "{ From: ");
-              print_str(globals, outputfile, globals->current_input_file);
-              print_str(globals, outputfile, " }");
+              print_str(globals, game_header, outputfile, "{ From: ");
+              print_str(globals, game_header, outputfile,
+                        globals->current_input_file);
+              print_str(globals, game_header, outputfile, " }");
               terminate_line(globals, outputfile);
             }
             last_input_file = globals->current_input_file;
           }
           if (globals->keep_comments) {
-            print_str(globals, outputfile, "{ First found in: ");
-            print_str(globals, outputfile, original_filename);
-            print_str(globals, outputfile, " }");
+            print_str(globals, game_header, outputfile, "{ First found in: ");
+            print_str(globals, game_header, outputfile, original_filename);
+            print_str(globals, game_header, outputfile, " }");
             terminate_line(globals, outputfile);
           }
         }
         if (!globals->suppress_matched) {
           /* Now output what we have. */
-          output_game(globals, &current_game, outputfile);
+          output_game(globals, game_header, &current_game, outputfile);
           if (globals->verbosity > 1) {
             /* Report progress on logfile. */
-            report_details(globals->logfile);
+            report_details(game_header, globals->logfile);
           }
         }
       }
@@ -1154,7 +1168,8 @@ static void deal_with_game(StateInfo *globals, Move *move_list,
       /* Make sure that the move text is in a reasonable state.
        * Force checking of the whole game.
        */
-      (void)apply_move_list(globals, &current_game, &plycount, 0, false);
+      (void)apply_move_list(globals, game_header, &current_game, &plycount, 0,
+                            false);
     }
     if (current_game.moves_ok || globals->keep_broken_games) {
       if (globals->json_format) {
@@ -1165,7 +1180,8 @@ static void deal_with_game(StateInfo *globals, Move *move_list,
         }
       }
       globals->num_non_matching_games++;
-      output_game(globals, &current_game, globals->non_matching_file);
+      output_game(globals, game_header, &current_game,
+                  globals->non_matching_file);
     }
   }
   if (game_matches && globals->matching_game_numbers != NULL &&
@@ -1179,16 +1195,16 @@ static void deal_with_game(StateInfo *globals, Move *move_list,
   }
 
   /* Game is finished with, so free everything. */
-  if (GameHeader.prefix_comment != NULL) {
-    free_comment_list(GameHeader.prefix_comment);
+  if (game_header->prefix_comment != NULL) {
+    free_comment_list(game_header, game_header->prefix_comment);
   }
   /* Ensure that the GameHeader's prefix comment is NULL for
    * the next game.
    */
-  GameHeader.prefix_comment = NULL;
+  game_header->prefix_comment = NULL;
 
-  free_tags();
-  free_move_list(current_game.moves);
+  free_tags(game_header);
+  free_move_list(game_header, current_game.moves);
   if (current_game.position_counts != NULL) {
     free_position_count_list(current_game.position_counts);
     current_game.position_counts = NULL;
@@ -1204,12 +1220,12 @@ static void deal_with_game(StateInfo *globals, Move *move_list,
  * If globals->split_variants then this will involve outputting
  * each variation separately.
  */
-static void output_game(const StateInfo *globals, Game *game,
-                        FILE *outputfile) {
+static void output_game(const StateInfo *globals, GameHeader *game_header,
+                        Game *game, FILE *outputfile) {
   if (globals->split_variants && globals->keep_variations) {
-    split_variants(globals, game, outputfile, 0);
+    split_variants(globals, game_header, game, outputfile, 0);
   } else {
-    format_game(globals, game, outputfile);
+    format_game(globals, game_header, game, outputfile);
   }
 }
 
@@ -1219,8 +1235,8 @@ static void output_game(const StateInfo *globals, Game *game,
  * This is done recursively and depth (>=0) defines the current
  * level of recursion.
  */
-static void split_variants(const StateInfo *globals, Game *game,
-                           FILE *outputfile, unsigned depth) {
+static void split_variants(const StateInfo *globals, GameHeader *game_header,
+                           Game *game, FILE *outputfile, unsigned depth) {
   /* Gather all the suffix comments at this level. */
   Move *move = game->moves;
   while (move != NULL) {
@@ -1237,7 +1253,7 @@ static void split_variants(const StateInfo *globals, Game *game,
   }
 
   /* Format the main line at this level. */
-  format_game(globals, game, outputfile);
+  format_game(globals, game_header, game, outputfile);
 
   if (globals->split_depth_limit == 0 || globals->split_depth_limit > depth) {
     /* Now all the variations. */
@@ -1277,7 +1293,7 @@ static void split_variants(const StateInfo *globals, Game *game,
                   append_comment(prefix_comment, game->prefix_comment);
             }
           }
-          split_variants(globals, game, outputfile, depth + 1);
+          split_variants(globals, game_header, game, outputfile, depth + 1);
           if (prefix_comment != NULL) {
             /* Remove the appended comments. */
             CommentList *list;
@@ -1305,7 +1321,7 @@ static void split_variants(const StateInfo *globals, Game *game,
       }
       if (move->Variants != NULL) {
         /* The variation can now be disposed of. */
-        free_variation(move->Variants);
+        free_variation(game_header, move->Variants);
         move->Variants = NULL;
         /* Restore the move replaced by its variants. */
         if (prev != NULL) {
@@ -1323,7 +1339,8 @@ static void split_variants(const StateInfo *globals, Game *game,
   }
 }
 
-static void deal_with_ECO_line(const StateInfo *globals, Move *move_list) {
+static void deal_with_ECO_line(const StateInfo *globals,
+                               GameHeader *game_header, Move *move_list) {
   Game current_game;
   /* We need to know the length of a game to store with the
    * hash information as a sanity check.
@@ -1331,9 +1348,9 @@ static void deal_with_ECO_line(const StateInfo *globals, Move *move_list) {
   unsigned number_of_half_moves;
 
   /* Fill in the information currently known. */
-  current_game.tags = GameHeader.Tags;
-  current_game.tags_length = GameHeader.header_tags_length;
-  current_game.prefix_comment = GameHeader.prefix_comment;
+  current_game.tags = game_header->Tags;
+  current_game.tags_length = game_header->header_tags_length;
+  current_game.prefix_comment = game_header->prefix_comment;
   current_game.moves = move_list;
   current_game.moves_checked = false;
   current_game.moves_ok = false;
@@ -1345,8 +1362,8 @@ static void deal_with_ECO_line(const StateInfo *globals, Move *move_list) {
    *                 current_game.cumulative_hash_value
    * fields of current_game.
    */
-  Board *final_position =
-      apply_eco_move_list(globals, &current_game, &number_of_half_moves);
+  Board *final_position = apply_eco_move_list(
+      globals, game_header, &current_game, &number_of_half_moves);
   if (final_position != NULL) {
     /* Store the ECO code in the appropriate hash location. */
     save_eco_details(globals, &current_game, final_position,
@@ -1354,25 +1371,26 @@ static void deal_with_ECO_line(const StateInfo *globals, Move *move_list) {
   }
 
   /* Game is finished with, so free everything. */
-  if (GameHeader.prefix_comment != NULL) {
-    free_comment_list(GameHeader.prefix_comment);
+  if (game_header->prefix_comment != NULL) {
+    free_comment_list(game_header, game_header->prefix_comment);
   }
   /* Ensure that the GameHeader's prefix comment is NULL for
    * the next game.
    */
-  GameHeader.prefix_comment = NULL;
+  game_header->prefix_comment = NULL;
 
-  free_tags();
-  free_move_list(current_game.moves);
+  free_tags(game_header);
+  free_move_list(game_header, current_game.moves);
 }
 
 /* If file_type == ECOFILE we are dealing with a file of ECO
  * input rather than a normal game file.
  */
-int yyparse(StateInfo *globals, SourceFileType file_type) {
+int yyparse(StateInfo *globals, GameHeader *game_header,
+            SourceFileType file_type) {
   setup_for_new_game();
-  current_symbol = skip_to_next_game(globals, NO_TOKEN);
-  parse_opt_game_list(globals, file_type);
+  current_symbol = skip_to_next_game(globals, game_header, NO_TOKEN);
+  parse_opt_game_list(globals, game_header, file_type);
   if (current_symbol == EOF_TOKEN) {
     /* Ok -- EOF. */
     return 0;

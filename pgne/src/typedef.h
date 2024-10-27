@@ -172,6 +172,17 @@ typedef struct move {
   struct move *prev, *next;
 } Move;
 
+/* Retain details of the header of a game.
+ * This comprises the Tags and any comment prefixing the
+ * moves of the game.
+ */
+typedef struct {
+  /* The tag values. */
+  char **Tags;
+  unsigned header_tags_length;
+  CommentList *prefix_comment;
+} GameHeader;
+
 typedef struct {
   /* Tags for this game. */
   char **tags;

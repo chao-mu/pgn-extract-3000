@@ -527,6 +527,7 @@ static void extract_pieces_from_board(int num_pieces[2][NUM_PIECE_VALUES],
  * of pieces.
  */
 static bool look_for_material_match(const StateInfo *globals,
+                                    GameHeader *game_header,
                                     Game *game_details) {
   bool game_ok = true;
   bool match_comment_added = false;
@@ -539,7 +540,8 @@ static bool look_for_material_match(const StateInfo *globals,
       /*     P  N  B  R  Q  K */
       {0, 0, 8, 2, 2, 2, 1, 1},
       {0, 0, 8, 2, 2, 2, 1, 1}};
-  Board *board = new_game_board(globals, game_details->tags[FEN_TAG]);
+  Board *board =
+      new_game_board(globals, game_header, game_details->tags[FEN_TAG]);
 
   if (game_details->tags[FEN_TAG] != NULL) {
     extract_pieces_from_board(num_pieces, board);
@@ -579,7 +581,8 @@ static bool look_for_material_match(const StateInfo *globals,
         if (globals->add_position_match_comments && !match_comment_added) {
           CommentList *match_comment = create_match_comment(globals, board);
           if (move_for_comment != NULL) {
-            append_comments_to_move(move_for_comment, match_comment);
+            append_comments_to_move(game_header, move_for_comment,
+                                    match_comment);
           } else {
             if (game_details->prefix_comment == NULL) {
               game_details->prefix_comment = match_comment;
@@ -600,7 +603,7 @@ static bool look_for_material_match(const StateInfo *globals,
       end_of_game = true;
     } else if (*(next_move->move) != '\0') {
       /* Try the next position. */
-      if (apply_move(globals, next_move, board)) {
+      if (apply_move(globals, game_header, next_move, board)) {
         /* Remove any captured pieces. */
         if (next_move->captured_piece != EMPTY) {
           num_pieces[OPPOSITE_COLOUR(colour)][next_move->captured_piece]--;
@@ -641,10 +644,11 @@ static bool look_for_material_match(const StateInfo *globals,
  * In other words, a position with the required balance
  * of pieces.
  */
-bool check_for_material_match(const StateInfo *globals, Game *game) {
+bool check_for_material_match(const StateInfo *globals, GameHeader *game_header,
+                              Game *game) {
   /* Match if there are no endings to match. */
   if (endings_to_match != NULL) {
-    return look_for_material_match(globals, game);
+    return look_for_material_match(globals, game_header, game);
   } else {
     return true;
   }
@@ -709,8 +713,8 @@ MaterialCriteria *process_material_description(const StateInfo *globals,
 }
 
 /* Read a file containing material matches. */
-bool build_endings(const StateInfo *globals, const char *infile,
-                   bool both_colours) {
+bool build_endings(const StateInfo *globals, GameHeader *game_header,
+                   const char *infile, bool both_colours) {
   FILE *fp = fopen(infile, "r");
   bool Ok = true;
 
@@ -719,7 +723,7 @@ bool build_endings(const StateInfo *globals, const char *infile,
     exit(1);
   } else {
     char *line;
-    while ((line = read_line(globals, fp)) != NULL) {
+    while ((line = read_line(globals, game_header, fp)) != NULL) {
       if (process_material_description(globals, line, both_colours, false) ==
           NULL) {
         Ok = false;

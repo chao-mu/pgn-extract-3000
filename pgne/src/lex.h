@@ -75,11 +75,12 @@ typedef struct {
  */
 void add_filename_to_source_list(const StateInfo *globals, const char *filename,
                                  SourceFileType file_type);
-void add_filename_list_from_file(const StateInfo *globals, FILE *fp,
+void add_filename_list_from_file(const StateInfo *globals,
+                                 GameHeader *game_header, FILE *fp,
                                  SourceFileType file_type);
 unsigned current_file_number(void);
-void free_move_list(Move *move_list);
-LinePair gather_tag(const StateInfo *globals, char *line, unsigned char *linep);
+LinePair gather_tag(const StateInfo *globals, GameHeader *game_header,
+                    char *line, unsigned char *linep);
 LinePair gather_string(const StateInfo *globals, char *line,
                        unsigned char *linep);
 void init_lex_tables(void);
@@ -87,17 +88,20 @@ const char *input_file_name(unsigned file_number);
 unsigned long get_line_number(void);
 bool is_character_class(unsigned char ch, TokenType character_class);
 bool is_suppressed_tag(const StateInfo *globals, TagName tag);
-char *next_input_line(const StateInfo *globals, FILE *fp);
-TokenType next_token(StateInfo *globals);
+char *next_input_line(const StateInfo *globals, GameHeader *game_header,
+                      FILE *fp);
+TokenType next_token(StateInfo *globals, GameHeader *game_header);
 bool open_eco_file(StateInfo *globals, const char *eco_file);
 bool open_first_file(StateInfo *globals);
 void print_error_context(const StateInfo *globals, FILE *fp);
-char *read_line(const StateInfo *globals, FILE *fpin);
+char *read_line(const StateInfo *globals, GameHeader *game_header, FILE *fpin);
 void reset_line_number(void);
 void restart_lex_for_new_game(void);
 void save_assessment(const char *assess);
-TokenType skip_to_next_game(StateInfo *globals, TokenType token);
-void suppress_tag(const StateInfo *globals, const char *tag_string);
+TokenType skip_to_next_game(StateInfo *globals, GameHeader *game_header,
+                            TokenType token);
+void suppress_tag(const StateInfo *globals, GameHeader *game_header,
+                  const char *tag_string);
 const char *tag_header_string(const StateInfo *globals, TagName tag);
 void yyerror(const char *s);
 int yywrap(StateInfo *globals);

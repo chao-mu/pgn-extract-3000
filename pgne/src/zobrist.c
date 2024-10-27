@@ -359,6 +359,7 @@ uint64_t piece_hash(char piece, int rank, int col) {
  * @@@ NB: Chess960 not currently dealt with. Return 0 if encountered.
  */
 uint64_t generate_zobrist_hash_from_fen(const StateInfo *globals,
+                                        GameHeader *game_header,
                                         const char *fen) {
   Rank rank = LASTRANK;
   Col col = FIRSTCOL;
@@ -566,7 +567,7 @@ uint64_t generate_zobrist_hash_from_fen(const StateInfo *globals,
     if (chess960) {
       fprintf(globals->logfile, "Chess960 castling notation not supported "
                                 "in generating a hashcode.\n");
-      report_details(globals->logfile);
+      report_details(game_header, globals->logfile);
       Ok = false;
     }
   }
@@ -666,7 +667,7 @@ uint64_t generate_zobrist_hash_from_fen(const StateInfo *globals,
 
   if (!Ok) {
     fprintf(globals->logfile, "Illegal FEN string %s at %s\n", fen, fen_char);
-    report_details(globals->logfile);
+    report_details(game_header, globals->logfile);
   }
   if (Ok) {
     return hash;

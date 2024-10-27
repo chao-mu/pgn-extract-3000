@@ -48,7 +48,8 @@ static bool extract_yytext(const StateInfo *globals,
                            const unsigned char *symbol_start,
                            const unsigned char *linep);
 static int identify_tag(const char *tag_string);
-static TagName make_new_tag(const StateInfo *globals, const char *tag);
+static TagName make_new_tag(const StateInfo *globals, GameHeader *game_header,
+                            const char *tag);
 static bool open_input(StateInfo *globals, const char *infile);
 static bool open_input_file(StateInfo *globals, int file_number);
 /* When a move is saved, what is known of its source and destination coordinates
@@ -169,7 +170,8 @@ static void init_list_of_known_tags(void) {
  * Return the current value of tag_list_length as its
  * index, having incremented its value.
  */
-static TagName make_new_tag(const StateInfo *globals, const char *tag) {
+static TagName make_new_tag(const StateInfo *globals, GameHeader *game_header,
+                            const char *tag) {
   unsigned tag_index = tag_list_length;
   tag_list_length++;
   TagList = (const char **)realloc_or_die((void *)TagList,
@@ -181,7 +183,7 @@ static TagName make_new_tag(const StateInfo *globals, const char *tag) {
   /* Ensure that the game header's tags array can accommodate
    * the new tag.
    */
-  increase_game_header_tags_length(globals, tag_list_length);
+  increase_game_header_tags_length(globals, game_header, tag_list_length);
   return tag_index;
 }
 
@@ -206,10 +208,11 @@ bool is_suppressed_tag(const StateInfo *globals, TagName tag) {
 }
 
 /* Don't include the given tag on output. */
-void suppress_tag(const StateInfo *globals, const char *tag_string) {
+void suppress_tag(const StateInfo *globals, GameHeader *game_header,
+                  const char *tag_string) {
   int tag_item = identify_tag(tag_string);
   if (tag_item < 0) {
-    tag_item = make_new_tag(globals, tag_string);
+    tag_item = make_new_tag(globals, game_header, tag_string);
   }
   suppressed_tags[tag_item] = true;
 }
@@ -459,7 +462,8 @@ bool is_character_class(unsigned char ch, TokenType character_class) {
 /* Starting from linep in line, gather up a comment until
  * the END_COMMENT.  Skip over the END_COMMENT.
  */
-static LinePair gather_comment(const StateInfo *globals, char *line,
+static LinePair gather_comment(const StateInfo *globals,
+                               GameHeader *game_header, char *line,
                                unsigned char *linep) {
   LinePair resulting_line;
   char ch;
@@ -522,13 +526,13 @@ static LinePair gather_comment(const StateInfo *globals, char *line,
       current_comment = save_string_list_item(current_comment, comment_str);
     }
     if (ch == '\0') {
-      line = next_input_line(globals, yyin);
+      line = next_input_line(globals, game_header, yyin);
       linep = (unsigned char *)line;
     }
   } while ((ch != '}') && (line != NULL));
   if (comment_depth > 0) {
     fprintf(globals->logfile, "Missing end of a nested comment.\n");
-    report_details(globals->logfile);
+    report_details(game_header, globals->logfile);
   }
 
   /* Set up the structure to be returned. */
@@ -546,7 +550,8 @@ static LinePair gather_comment(const StateInfo *globals, char *line,
 /* Starting from linep in line, gather up a comment until
  * the END_COMMENT.  Skip over the END_COMMENT.
  */
-static LinePair gather_single_line_comment(const StateInfo *globals, char *line,
+static LinePair gather_single_line_comment(const StateInfo *globals,
+                                           GameHeader *game_header, char *line,
                                            unsigned char *linep) {
   LinePair resulting_line;
 
@@ -601,7 +606,7 @@ static LinePair gather_single_line_comment(const StateInfo *globals, char *line,
     resulting_line.token = NO_TOKEN;
   }
 
-  resulting_line.line = next_input_line(globals, yyin);
+  resulting_line.line = next_input_line(globals, game_header, yyin);
   resulting_line.linep = (unsigned char *)resulting_line.line;
   return resulting_line;
 }
@@ -706,8 +711,8 @@ static int identify_tag(const char *tag_string) {
 /* Starting from linep in line, gather up the tag name.
  * Skip over any preceding white space.
  */
-LinePair gather_tag(const StateInfo *globals, char *line,
-                    unsigned char *linep) {
+LinePair gather_tag(const StateInfo *globals, GameHeader *game_header,
+                    char *line, unsigned char *linep) {
   LinePair resulting_line;
   char ch;
   unsigned len = 0;
@@ -715,7 +720,7 @@ LinePair gather_tag(const StateInfo *globals, char *line,
   do {
     /* Check for end of line while skipping white space. */
     if (*linep == '\0') {
-      line = next_input_line(globals, yyin);
+      line = next_input_line(globals, game_header, yyin);
       linep = (unsigned char *)line;
     }
     if (line != NULL) {
@@ -743,7 +748,7 @@ LinePair gather_tag(const StateInfo *globals, char *line,
       tag_string[len] = '\0';
       tag_item = identify_tag(tag_string);
       if (tag_item < 0) {
-        tag_item = make_new_tag(globals, tag_string);
+        tag_item = make_new_tag(globals, game_header, tag_string);
       }
       if (tag_item >= 0 && ((unsigned)tag_item) < tag_list_length) {
         yylval.tag_index = tag_item;
@@ -790,7 +795,8 @@ static bool extract_yytext(const StateInfo *globals,
 /* Identify the next symbol.
  * Don't take any action on EOF -- leave that to next_token.
  */
-static TokenType get_next_symbol(const StateInfo *globals) {
+static TokenType get_next_symbol(const StateInfo *globals,
+                                 GameHeader *game_header) {
   static char *line = NULL;
   static unsigned char *linep = NULL;
   /* The token to be returned. */
@@ -804,7 +810,7 @@ static TokenType get_next_symbol(const StateInfo *globals) {
     /* Clear any remaining symbol. */
     *yytext = '\0';
     if (line == NULL) {
-      line = next_input_line(globals, yyin);
+      line = next_input_line(globals, game_header, yyin);
       linep = (unsigned char *)line;
       if (line != NULL) {
         token = NO_TOKEN;
@@ -827,7 +833,7 @@ static TokenType get_next_symbol(const StateInfo *globals) {
         token = NO_TOKEN;
         break;
       case TAG_START:
-        resulting_line = gather_tag(globals, line, linep);
+        resulting_line = gather_tag(globals, game_header, line, linep);
         /* Pick up where we are now. */
         line = resulting_line.line;
         linep = resulting_line.linep;
@@ -844,7 +850,7 @@ static TokenType get_next_symbol(const StateInfo *globals) {
         token = resulting_line.token;
         break;
       case COMMENT_START:
-        resulting_line = gather_comment(globals, line, linep);
+        resulting_line = gather_comment(globals, game_header, line, linep);
         /* Pick up where we are now. */
         line = resulting_line.line;
         linep = resulting_line.linep;
@@ -918,7 +924,8 @@ static TokenType get_next_symbol(const StateInfo *globals) {
         token = NO_TOKEN;
         break;
       case SEMICOLON:
-        resulting_line = gather_single_line_comment(globals, line, linep);
+        resulting_line =
+            gather_single_line_comment(globals, game_header, line, linep);
         /* Pick up where we are now. */
         line = resulting_line.line;
         linep = resulting_line.linep;
@@ -927,7 +934,7 @@ static TokenType get_next_symbol(const StateInfo *globals) {
       case PERCENT:
         if (symbol_start == (const unsigned char *)line) {
           /* Discard the rest of the line. */
-          line = next_input_line(globals, yyin);
+          line = next_input_line(globals, game_header, yyin);
           linep = (unsigned char *)line;
           token = NO_TOKEN;
         } else {
@@ -1079,7 +1086,7 @@ static TokenType get_next_symbol(const StateInfo *globals) {
         break;
       case EOS:
         /* End of the string. */
-        line = next_input_line(globals, yyin);
+        line = next_input_line(globals, game_header, yyin);
         linep = (unsigned char *)line;
         token = NO_TOKEN;
         break;
@@ -1122,13 +1129,13 @@ static TokenType get_next_symbol(const StateInfo *globals) {
   return token;
 }
 
-TokenType next_token(StateInfo *globals) {
-  TokenType token = get_next_symbol(globals);
+TokenType next_token(StateInfo *globals, GameHeader *game_header) {
+  TokenType token = get_next_symbol(globals, game_header);
 
   /* Don't call yywrap if parsing the ECO file. */
   while ((token == EOF_TOKEN) && !globals->parsing_ECO_file &&
          !yywrap(globals)) {
-    token = get_next_symbol(globals);
+    token = get_next_symbol(globals, game_header);
   }
   return token;
 }
@@ -1153,7 +1160,8 @@ static bool skip_token(TokenType token) {
  * a tag section a terminating result from the
  * previous game, or a move.
  */
-TokenType skip_to_next_game(StateInfo *globals, TokenType token) {
+TokenType skip_to_next_game(StateInfo *globals, GameHeader *game_header,
+                            TokenType token) {
   if (skip_token(token)) {
     globals->skipping_current_game = true;
     do {
@@ -1165,7 +1173,7 @@ TokenType skip_to_next_game(StateInfo *globals, TokenType token) {
           yylval.comment = NULL;
         }
       }
-      token = next_token(globals);
+      token = next_token(globals, game_header);
     } while (skip_token(token));
     globals->skipping_current_game = false;
   }
@@ -1253,14 +1261,15 @@ static int get_next_char(FILE *fpin) {
 }
 
 /* Unget the previous input character. */
-static void unget_char(const StateInfo *globals, int c, FILE *fpin) {
+static void unget_char(const StateInfo *globals, GameHeader *game_header, int c,
+                       FILE *fpin) {
   if (input_buffer_index > 0) {
     if (c != EOF) {
       input_buffer_index--;
     }
   } else {
     fprintf(globals->logfile, "Internal error: unget_char(%c)\n", c);
-    report_details(globals->logfile);
+    report_details(game_header, globals->logfile);
     exit(1);
   }
 }
@@ -1269,7 +1278,7 @@ static void unget_char(const StateInfo *globals, int c, FILE *fpin) {
 #define INIT_LINE_LENGTH 100
 #define LINE_INCREMENT 100
 
-char *read_line(const StateInfo *globals, FILE *fpin) {
+char *read_line(const StateInfo *globals, GameHeader *game_header, FILE *fpin) {
   char *line = NULL;
   unsigned len = 0;
   unsigned max_length;
@@ -1298,7 +1307,7 @@ char *read_line(const StateInfo *globals, FILE *fpin) {
       /* Try to avoid double counting lines in dos-format files. */
       ch = get_next_char(fpin);
       if (ch != '\n' && ch != EOF) {
-        unget_char(globals, ch, fpin);
+        unget_char(globals, game_header, ch, fpin);
       }
     }
   }
@@ -1309,7 +1318,8 @@ char *read_line(const StateInfo *globals, FILE *fpin) {
  * to be added to the existing list_of_files.
  * list_of_files.list must have a (char *)NULL on the end.
  */
-void add_filename_list_from_file(const StateInfo *globals, FILE *fp,
+void add_filename_list_from_file(const StateInfo *globals,
+                                 GameHeader *game_header, FILE *fp,
                                  SourceFileType file_type) {
   if ((list_of_files.files == NULL) || (list_of_files.max_files == 0)) {
     /* Allocate an initial number of pointers for the lines.
@@ -1324,7 +1334,7 @@ void add_filename_list_from_file(const StateInfo *globals, FILE *fp,
   }
   if (list_of_files.files != NULL) {
     /* Find the first line. */
-    char *line = read_line(globals, fp);
+    char *line = read_line(globals, game_header, fp);
 
     while (line != NULL) {
       if (non_blank_line(line)) {
@@ -1332,7 +1342,7 @@ void add_filename_list_from_file(const StateInfo *globals, FILE *fp,
       } else {
         (void)free((void *)line);
       }
-      line = read_line(globals, fp);
+      line = read_line(globals, game_header, fp);
     }
   }
 }
@@ -1495,16 +1505,16 @@ static void save_string(const char *str) {
 }
 
 /* Return the next line of input from fp. */
-char *next_input_line(
-    const StateInfo *globals,
-    FILE *fp) { /* Retain each line in turn, so as to be able to free it. */
+char *next_input_line(const StateInfo *globals, GameHeader *game_header,
+                      FILE *fp) {
+  /* Retain each line in turn, so as to be able to free it. */
   static char *line = NULL;
 
   if (line != NULL) {
     (void)free((void *)line);
   }
 
-  line = read_line(globals, fp);
+  line = read_line(globals, game_header, fp);
 
   if (line != NULL) {
     line_number++;

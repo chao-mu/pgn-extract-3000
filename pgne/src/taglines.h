@@ -26,11 +26,13 @@
 
 #include <stdbool.h>
 
-void read_tag_file(StateInfo *globals, const char *TagFile,
-                   bool positive_match);
-void read_tag_roster_file(StateInfo *globals, const char *RosterFile);
-bool process_tag_line(StateInfo *globals, const char *TagFile, char *line,
-                      bool positive_match);
-bool process_roster_line(const StateInfo *globals, char *line);
+void read_tag_file(StateInfo *globals, GameHeader *game_header,
+                   const char *TagFile, bool positive_match);
+void read_tag_roster_file(StateInfo *globals, GameHeader *game_header,
+                          const char *RosterFile);
+bool process_tag_line(StateInfo *globals, GameHeader *game_header,
+                      const char *TagFile, char *line, bool positive_match);
+bool process_roster_line(const StateInfo *globals, GameHeader *game_header,
+                         char *line);
 
 #endif // TAGLINES_H

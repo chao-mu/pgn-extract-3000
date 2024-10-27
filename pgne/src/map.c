@@ -23,7 +23,7 @@
 
 #include "decode.h"
 #include "defs.h"
-#include "lex.h"
+#include "moves.h"
 #include "mymalloc.h"
 #include "typedef.h"
 
@@ -1653,8 +1653,8 @@ static bool king_move(const StateInfo *globals, Move *move_details,
  * program, for instance.
  * NB: this function does not determine whether or not the move gives check.
  */
-bool determine_move_details(const StateInfo *globals, Colour colour,
-                            Move *move_details, Board *board) {
+bool determine_move_details(const StateInfo *globals, GameHeader *game_header,
+                            Colour colour, Move *move_details, Board *board) {
   bool Ok = false;
 
   if (move_details == NULL) {
@@ -1788,7 +1788,7 @@ bool determine_move_details(const StateInfo *globals, Colour colour,
               move_details->to_col = alternative->to_col;
               move_details->to_rank = alternative->to_rank;
               move_details->piece_to_move = alternative->piece_to_move;
-              free_move_list(alternative);
+              free_move_list(game_header, alternative);
               move_handled = true;
             }
           }

@@ -27,8 +27,8 @@
 #include <stdbool.h>
 
 void init_hashtab(void);
-bool determine_move_details(const StateInfo *globals, Colour colour,
-                            Move *move_details, Board *board);
+bool determine_move_details(const StateInfo *globals, GameHeader *game_header,
+                            Colour colour, Move *move_details, Board *board);
 HashCode hash_lookup(Col col, Rank rank, Piece piece, Colour colour);
 void make_move(MoveClass class, Col from_col, Rank from_rank, Col to_col,
                Rank to_rank, Piece piece, Colour colour, Board *board);

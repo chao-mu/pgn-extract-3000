@@ -518,12 +518,13 @@ static bool standard_start_seen = false;
  * deleted or if the current position has not been met before.
  * Otherwise return true.
  */
-bool check_duplicate_setup(const StateInfo *globals, const Game *game_details) {
+bool check_duplicate_setup(const StateInfo *globals, GameHeader *game_header,
+                           const Game *game_details) {
   bool keep = true;
   if (globals->delete_same_setup) {
     if (game_details->tags[FEN_TAG] != NULL) {
-      uint64_t hash =
-          generate_zobrist_hash_from_fen(globals, game_details->tags[FEN_TAG]);
+      uint64_t hash = generate_zobrist_hash_from_fen(
+          globals, game_header, game_details->tags[FEN_TAG]);
       unsigned ix = hash % SETUP_TABLE_SIZE;
       bool found = false;
       for (HashLog *entry = polyglot_codes_of_interest[ix];

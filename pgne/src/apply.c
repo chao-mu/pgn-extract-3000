@@ -49,27 +49,32 @@
 #define DEFAULT_POSITIONAL_DEPTH 300
 
 /* Prototypes of functions limited to this file. */
-static bool check_move_validity(const StateInfo *globals, Game *game_details,
+static bool check_move_validity(const StateInfo *globals,
+                                GameHeader *game_header, Game *game_details,
                                 Board *board, Move *moves, bool mainline);
 static bool check_variation_validity(const StateInfo *globals,
+                                     GameHeader *game_header,
                                      const Game *game_details,
                                      const Board *board, Variation *variation);
 static const char *position_matches(const StateInfo *globals,
                                     const Board *board);
-static bool play_moves(const StateInfo *globals, Game *game_details,
-                       Board *board, Move *moves, unsigned max_depth,
-                       bool check_move_validity, bool mainline);
-static bool apply_variations(const StateInfo *globals, const Game *game_details,
-                             const Board *board, Variation *variation,
-                             bool check_move_validity);
-static bool rewrite_variations(const StateInfo *globals, const Board *board,
+static bool play_moves(const StateInfo *globals, GameHeader *game_header,
+                       Game *game_details, Board *board, Move *moves,
+                       unsigned max_depth, bool check_move_validity,
+                       bool mainline);
+static bool apply_variations(const StateInfo *globals, GameHeader *game_header,
+                             const Game *game_details, const Board *board,
+                             Variation *variation, bool check_move_validity);
+static bool rewrite_variations(const StateInfo *globals,
+                               GameHeader *game_header, const Board *board,
                                Variation *variation);
-static bool rewrite_moves(const StateInfo *globals, Game *game, Board *board,
-                          Move *move_details);
+static bool rewrite_moves(const StateInfo *globals, GameHeader *game_header,
+                          Game *game, Board *board, Move *move_details);
 static void build_FEN_components(const StateInfo *globals, const Board *board,
                                  char *epd, char *fen_suffix);
 static unsigned plies_in_move_sequence(Move *moves);
-static bool drop_plies_from_start(const StateInfo *globals, Game *game,
+static bool drop_plies_from_start(const StateInfo *globals,
+                                  GameHeader *game_header, Game *game,
                                   Move *moves, int plies_to_drop);
 #if 0
 static void append_evaluation(Move *move_details, const Board *board);
@@ -292,7 +297,8 @@ static Col find_rook_starting_position(const Board *board, Colour colour,
  *        half-moves since pawn move/piece capture.
  *        move number.
  */
-Board *new_fen_board(const StateInfo *globals, const char *fen) {
+Board *new_fen_board(const StateInfo *globals, GameHeader *game_header,
+                     const char *fen) {
   Board *new_board = allocate_new_board();
   /* Start with a clear board. */
   static const Board initial_board = {
@@ -602,7 +608,7 @@ Board *new_fen_board(const StateInfo *globals, const char *fen) {
       free_board(new_board);
       new_board = NULL;
     }
-    report_details(globals->logfile);
+    report_details(game_header, globals->logfile);
     print_error_context(globals, globals->logfile);
   }
   return new_board;
@@ -611,8 +617,8 @@ Board *new_fen_board(const StateInfo *globals, const char *fen) {
 /* add_fen_castling is true and castling permissions are absent.
  * Liberally assume them based on the King and Rook positions.
  */
-void add_fen_castling(const StateInfo *globals, Game *game_details,
-                      Board *board) {
+void add_fen_castling(const StateInfo *globals, GameHeader *game_header,
+                      Game *game_details, Board *board) {
   bool added = false;
   /* NB: This is not coded for Chess 960 positions. */
   if (board->WKingCol == 'e' && board->WKingRank == '1') {
@@ -657,7 +663,8 @@ void add_fen_castling(const StateInfo *globals, Game *game_details,
  * If the fen argument is NULL then a completely new board is
  * setup, otherwise the indicated FEN position is returned.
  */
-Board *new_game_board(const StateInfo *globals, const char *fen) {
+Board *new_game_board(const StateInfo *globals, GameHeader *game_header,
+                      const char *fen) {
   Board *new_board = NULL;
   static const Board initial_board = {
       .board = {{OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF, OFF},
@@ -709,7 +716,7 @@ Board *new_game_board(const StateInfo *globals, const char *fen) {
   Col col;
 
   if (fen != NULL) {
-    new_board = new_fen_board(globals, fen);
+    new_board = new_fen_board(globals, game_header, fen);
   }
   /* Guard against failure of new_fen_board as well as the
    * normal game situation.
@@ -821,7 +828,7 @@ static void check_board(const Board *board, const char *where) {
         fprintf(globals->logfile,
                 "%s: Illegal square %c%c (%u %u) contains %d.\n", where, col,
                 rank, r, c, board->board[r][c]);
-        report_details(globals->logfile);
+        report_details(game_header, globals->logfile);
         abort();
         break;
       }
@@ -846,12 +853,13 @@ static int half_moves_played(const Board *board) {
  * move_details is completed by the call to determine_move_details.
  * Thereafter, it is safe to make the move on board.
  */
-bool apply_move(const StateInfo *globals, Move *move_details,
-                Board *board) { /* Assume success. */
+bool apply_move(const StateInfo *globals, GameHeader *game_header,
+                Move *move_details, Board *board) { /* Assume success. */
   bool Ok = true;
   Colour colour = board->to_move;
 
-  if (determine_move_details(globals, colour, move_details, board)) {
+  if (determine_move_details(globals, game_header, colour, move_details,
+                             board)) {
     Piece piece_to_move = move_details->piece_to_move;
 
     if (move_details->class != NULL_MOVE) {
@@ -925,9 +933,10 @@ bool apply_move(const StateInfo *globals, Move *move_details,
  * Return true if the game is valid and matches all matching criteria,
  * false otherwise.
  */
-static bool play_moves(const StateInfo *globals, Game *game_details,
-                       Board *board, Move *moves, unsigned max_depth,
-                       bool check_move_validity, bool mainline) {
+static bool play_moves(const StateInfo *globals, GameHeader *game_header,
+                       Game *game_details, Board *board, Move *moves,
+                       unsigned max_depth, bool check_move_validity,
+                       bool mainline) {
   bool game_ok = true;
   /* Ply number at which any error was found. */
   int error_ply = 0;
@@ -982,8 +991,8 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
       /* See if there are any variations associated with this move. */
       if ((next_move->Variants != NULL) && globals->keep_variations) {
         game_matches |=
-            apply_variations(globals, game_details, board, next_move->Variants,
-                             check_move_validity);
+            apply_variations(globals, game_header, game_details, board,
+                             next_move->Variants, check_move_validity);
       }
       /* Now try the main move. */
       if (next_move->class == NULL_MOVE) {
@@ -996,14 +1005,14 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
 #endif
       }
       if (check_move_validity) {
-        if (apply_move(globals, next_move, board)) {
+        if (apply_move(globals, game_header, next_move, board)) {
           /* Don't try for a positional match if we already have one. */
           if (check_for_match && !game_matches &&
               (match_label = position_matches(globals, board)) != NULL) {
             game_matches = true;
             if (globals->add_position_match_comments) {
               CommentList *comment = create_match_comment(globals, board);
-              append_comments_to_move(next_move, comment);
+              append_comments_to_move(game_header, next_move, comment);
             }
           }
           /* Combine this hash value with the cumulative one. */
@@ -1022,7 +1031,7 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
             if (repetition >= globals->check_for_repetition &&
                 globals->add_position_match_comments) {
               CommentList *comment = create_match_comment(globals, board);
-              append_comments_to_move(next_move, comment);
+              append_comments_to_move(game_header, next_move, comment);
             }
           }
 
@@ -1033,7 +1042,7 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
               N_move_rule_applies = true;
               if (globals->add_position_match_comments) {
                 CommentList *comment = create_match_comment(globals, board);
-                append_comments_to_move(next_move, comment);
+                append_comments_to_move(game_header, next_move, comment);
               }
             }
           }
@@ -1067,7 +1076,7 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
                               "Warning: Result of %s is inconsistent with "
                               "checkmate by white in\n",
                               result);
-                      report_details(globals->logfile);
+                      report_details(game_header, globals->logfile);
                       print_error_context(globals, globals->logfile);
                     }
                   }
@@ -1080,7 +1089,7 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
                               "Warning: Result of %s is inconsistent with "
                               "checkmate by black in\n",
                               result);
-                      report_details(globals->logfile);
+                      report_details(game_header, globals->logfile);
                       print_error_context(globals, globals->logfile);
                     }
                   }
@@ -1094,7 +1103,7 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
                             "Warning: Result of %s is inconsistent with "
                             "stalemate in\n",
                             result);
-                    report_details(globals->logfile);
+                    report_details(game_header, globals->logfile);
                     print_error_context(globals, globals->logfile);
                   }
                 }
@@ -1144,7 +1153,7 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
                         "Inconsistent result strings %s vs %s in the following "
                         "game.\n",
                         result_tag, move_result);
-                report_details(globals->logfile);
+                report_details(game_header, globals->logfile);
                 if (globals->reject_inconsistent_results) {
                   game_ok = false;
                 }
@@ -1187,7 +1196,7 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
                   board->move_number, (board->to_move == WHITE) ? "." : "...",
                   next_move->move);
           print_board(globals, board, globals->logfile);
-          report_details(globals->logfile);
+          report_details(game_header, globals->logfile);
           print_error_context(globals, globals->logfile);
           game_ok = false;
           /* Work out where the error was. */
@@ -1208,7 +1217,7 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
     } else {
       /* An empty move. */
       fprintf(globals->logfile, "Internal error: Empty move in play_moves.\n");
-      report_details(globals->logfile);
+      report_details(game_header, globals->logfile);
       game_ok = false;
       /* Work out where the error was. */
       error_ply = 2 * board->move_number - 1;
@@ -1321,7 +1330,8 @@ static bool play_moves(const StateInfo *globals, Game *game_details,
  * variation.
  * Return true if the game is valid, false otherwise.
  */
-static bool check_move_validity(const StateInfo *globals, Game *game_details,
+static bool check_move_validity(const StateInfo *globals,
+                                GameHeader *game_header, Game *game_details,
                                 Board *board, Move *moves, bool mainline) {
   bool game_ok = true;
   /* Ply number at which any error was found. */
@@ -1344,8 +1354,8 @@ static bool check_move_validity(const StateInfo *globals, Game *game_details,
       /* See if there are any variations associated with this move. */
       if ((next_move->Variants != NULL) && globals->keep_variations) {
         /* Make sure all variations are valid. */
-        game_ok &= check_variation_validity(globals, game_details, board,
-                                            next_move->Variants);
+        game_ok &= check_variation_validity(globals, game_header, game_details,
+                                            board, next_move->Variants);
       }
       /* Now try the main move. */
       if (next_move->class == NULL_MOVE) {
@@ -1354,7 +1364,7 @@ static bool check_move_validity(const StateInfo *globals, Game *game_details,
          * subsequent moves.
          */
       }
-      if (game_ok && apply_move(globals, next_move, board)) {
+      if (game_ok && apply_move(globals, game_header, next_move, board)) {
         /* Combine this hash value with the cumulative one. */
         game_details->cumulative_hash_value += board->weak_hash_value;
         if (next_move->next == NULL && mainline) {
@@ -1375,7 +1385,7 @@ static bool check_move_validity(const StateInfo *globals, Game *game_details,
                             "Warning: Result of %s is inconsistent with "
                             "checkmate by white in\n",
                             result);
-                    report_details(globals->logfile);
+                    report_details(game_header, globals->logfile);
                     print_error_context(globals, globals->logfile);
                   }
                 }
@@ -1388,7 +1398,7 @@ static bool check_move_validity(const StateInfo *globals, Game *game_details,
                             "Warning: Result of %s is inconsistent with "
                             "checkmate by black in\n",
                             result);
-                    report_details(globals->logfile);
+                    report_details(game_header, globals->logfile);
                     print_error_context(globals, globals->logfile);
                   }
                 }
@@ -1402,7 +1412,7 @@ static bool check_move_validity(const StateInfo *globals, Game *game_details,
                           "Warning: Result of %s is inconsistent with "
                           "stalemate in\n",
                           result);
-                  report_details(globals->logfile);
+                  report_details(game_header, globals->logfile);
                   print_error_context(globals, globals->logfile);
                 }
               }
@@ -1452,7 +1462,7 @@ static bool check_move_validity(const StateInfo *globals, Game *game_details,
                       "Inconsistent result strings %s vs %s in the following "
                       "game.\n",
                       result_tag, move_result);
-              report_details(globals->logfile);
+              report_details(game_header, globals->logfile);
               if (globals->reject_inconsistent_results) {
                 game_ok = false;
               }
@@ -1494,7 +1504,7 @@ static bool check_move_validity(const StateInfo *globals, Game *game_details,
                 board->move_number, (board->to_move == WHITE) ? "." : "...",
                 next_move->move);
         print_board(globals, board, globals->logfile);
-        report_details(globals->logfile);
+        report_details(game_header, globals->logfile);
         print_error_context(globals, globals->logfile);
         game_ok = false;
         /* Work out where the error was. */
@@ -1507,7 +1517,7 @@ static bool check_move_validity(const StateInfo *globals, Game *game_details,
     } else {
       /* An empty move. */
       fprintf(globals->logfile, "Internal error: Empty move in play_moves.\n");
-      report_details(globals->logfile);
+      report_details(game_header, globals->logfile);
       game_ok = false;
       /* Work out where the error was. */
       error_ply = 2 * board->move_number - 1;
@@ -1575,8 +1585,8 @@ static bool check_move_validity(const StateInfo *globals, Game *game_details,
  * game_details is updated with the final_ and cumulative_ hash
  * values.
  */
-static void play_eco_moves(const StateInfo *globals, Game *game_details,
-                           Board *board, Move *moves) {
+static void play_eco_moves(const StateInfo *globals, GameHeader *game_header,
+                           Game *game_details, Board *board, Move *moves) {
   bool game_ok = true;
   /* Ply number at which any error was found. */
   int error_ply = 0;
@@ -1589,7 +1599,7 @@ static void play_eco_moves(const StateInfo *globals, Game *game_details,
   while (game_ok && (next_move != NULL)) {
     if (*(next_move->move) != '\0') {
       /* Ignore variations. */
-      if (apply_move(globals, next_move, board)) {
+      if (apply_move(globals, game_header, next_move, board)) {
         /* Combine this hash value to the cumulative one. */
         game_details->cumulative_hash_value += board->weak_hash_value;
         next_move = next_move->next;
@@ -1599,7 +1609,7 @@ static void play_eco_moves(const StateInfo *globals, Game *game_details,
                 board->move_number, (board->to_move == WHITE) ? "." : "...",
                 next_move->move);
         print_board(globals, board, globals->logfile);
-        report_details(globals->logfile);
+        report_details(game_header, globals->logfile);
         print_error_context(globals, globals->logfile);
         game_ok = false;
         /* Work out where the error was. */
@@ -1613,7 +1623,7 @@ static void play_eco_moves(const StateInfo *globals, Game *game_details,
       /* An empty move. */
       fprintf(globals->logfile,
               "Internal error: Empty move in play_eco_moves.\n");
-      report_details(globals->logfile);
+      report_details(game_header, globals->logfile);
       game_ok = false;
       /* Work out where the error was. */
       error_ply = 2 * board->move_number - 1;
@@ -1637,9 +1647,9 @@ static void play_eco_moves(const StateInfo *globals, Game *game_details,
  * Return true if the variation matches a position that
  * we are looking for.
  */
-static bool apply_variations(const StateInfo *globals, const Game *game_details,
-                             const Board *board, Variation *variation,
-                             bool check_move_validity) {
+static bool apply_variations(const StateInfo *globals, GameHeader *game_header,
+                             const Game *game_details, const Board *board,
+                             Variation *variation, bool check_move_validity) {
   /* Force a match if we aren't looking for positional variations. */
   bool variation_matches = globals->positional_variations ? false : true;
   /* Allocate space for the copies.
@@ -1662,9 +1672,9 @@ static bool apply_variations(const StateInfo *globals, const Game *game_details,
      * will want the full move information if the main line
      * later matches.
      */
-    variation_matches |=
-        play_moves(globals, copy_game, copy_board, variation->moves,
-                   DEFAULT_POSITIONAL_DEPTH, check_move_validity, false);
+    variation_matches |= play_moves(globals, game_header, copy_game, copy_board,
+                                    variation->moves, DEFAULT_POSITIONAL_DEPTH,
+                                    check_move_validity, false);
     variation = variation->next;
   }
   (void)free((void *)copy_game);
@@ -1678,11 +1688,12 @@ static bool apply_variations(const StateInfo *globals, const Game *game_details,
  * Return true if the game matches a variation that we are
  * looking for.
  */
-bool apply_move_list(const StateInfo *globals, Game *game_details,
-                     unsigned *plycount, unsigned max_depth,
+bool apply_move_list(const StateInfo *globals, GameHeader *game_header,
+                     Game *game_details, unsigned *plycount, unsigned max_depth,
                      bool check_for_a_match) {
   Move *moves = game_details->moves;
-  Board *board = new_game_board(globals, game_details->tags[FEN_TAG]);
+  Board *board =
+      new_game_board(globals, game_header, game_details->tags[FEN_TAG]);
   bool game_matches;
 
   /* Ensure that we have a sensible search depth. */
@@ -1703,10 +1714,10 @@ bool apply_move_list(const StateInfo *globals, Game *game_details,
    * Check move validity.
    */
   if (check_for_a_match) {
-    game_matches =
-        play_moves(globals, game_details, board, moves, max_depth, true, true);
+    game_matches = play_moves(globals, game_header, game_details, board, moves,
+                              max_depth, true, true);
   } else {
-    check_move_validity(globals, game_details, board, moves, true);
+    check_move_validity(globals, game_header, game_details, board, moves, true);
     game_matches = false;
   }
 
@@ -1735,6 +1746,7 @@ bool apply_move_list(const StateInfo *globals, Game *game_details,
  * Return true if the variation is valid.
  */
 static bool check_variation_validity(const StateInfo *globals,
+                                     GameHeader *game_header,
                                      const Game *game_details,
                                      const Board *board, Variation *variation) {
   bool valid = true;
@@ -1757,7 +1769,7 @@ static bool check_variation_validity(const StateInfo *globals,
      * Play out the variation to its full depth, because we
      * will want the full move information.
      */
-    valid &= check_move_validity(globals, copy_game, copy_board,
+    valid &= check_move_validity(globals, game_header, copy_game, copy_board,
                                  variation->moves, false);
     variation = variation->next;
   }
@@ -1771,14 +1783,15 @@ static bool check_variation_validity(const StateInfo *globals,
  * Store in number_of_moves the length of the game.
  * Return the final Board if the game is ok, otherwise NULL.
  */
-Board *apply_eco_move_list(const StateInfo *globals, Game *game_details,
-                           unsigned *number_of_half_moves) {
+Board *apply_eco_move_list(const StateInfo *globals, GameHeader *game_header,
+                           Game *game_details, unsigned *number_of_half_moves) {
   Move *moves = game_details->moves;
-  Board *board = new_game_board(globals, game_details->tags[FEN_TAG]);
+  Board *board =
+      new_game_board(globals, game_header, game_details->tags[FEN_TAG]);
 
   /* Start off the cumulative hash value. */
   game_details->cumulative_hash_value = 0;
-  play_eco_moves(globals, game_details, board, moves);
+  play_eco_moves(globals, game_header, game_details, board, moves);
   /* Record how long the game was. */
   *number_of_half_moves = half_moves_played(board);
   if (!game_details->moves_ok) {
@@ -2076,8 +2089,8 @@ static bool rewrite_move(const StateInfo *globals, Game *game, Colour colour,
  * If game is NULL then the moves are a variation rather than
  * the main line.
  */
-static bool rewrite_moves(const StateInfo *globals, Game *game, Board *board,
-                          Move *moves) {
+static bool rewrite_moves(const StateInfo *globals, GameHeader *game_header,
+                          Game *game, Board *board, Move *moves) {
   bool game_ok = true;
   Move *move_details = moves;
   int plies_to_drop = globals->drop_ply_number;
@@ -2086,7 +2099,8 @@ static bool rewrite_moves(const StateInfo *globals, Game *game, Board *board,
     if (*(move_details->move) != '\0') {
       /* See if there are any variations associated with this move. */
       if ((move_details->Variants != NULL) && globals->keep_variations &&
-          !rewrite_variations(globals, board, move_details->Variants)) {
+          !rewrite_variations(globals, game_header, board,
+                              move_details->Variants)) {
         /* Something wrong with the variations. */
         game_ok = false;
       }
@@ -2143,7 +2157,7 @@ static bool rewrite_moves(const StateInfo *globals, Game *game, Board *board,
                   "Failed to rewrite move %u%s %s in the game:\n",
                   board->move_number, (board->to_move == WHITE) ? "." : "...",
                   move_details->move);
-          report_details(globals->logfile);
+          report_details(game_header, globals->logfile);
           print_error_context(globals, globals->logfile);
           print_board(globals, board, globals->logfile);
         }
@@ -2153,7 +2167,7 @@ static bool rewrite_moves(const StateInfo *globals, Game *game, Board *board,
       /* An empty move. */
       fprintf(globals->logfile,
               "Internal error: Empty move in rewrite_moves.\n");
-      report_details(globals->logfile);
+      report_details(game_header, globals->logfile);
       game_ok = false;
     }
   }
@@ -2195,7 +2209,7 @@ static bool rewrite_moves(const StateInfo *globals, Game *game, Board *board,
 
       if (prev != NULL) {
         prev->terminating_result = terminating_result;
-        append_comments_to_move(prev, comment);
+        append_comments_to_move(game_header, prev, comment);
       } else {
         /* The whole game is broken. */
         if (game != NULL) {
@@ -2214,7 +2228,8 @@ static bool rewrite_moves(const StateInfo *globals, Game *game, Board *board,
       plies_to_drop = plies + plies_to_drop;
     }
     if (plies_to_drop >= 0) {
-      game_ok = drop_plies_from_start(globals, game, moves, plies_to_drop);
+      game_ok = drop_plies_from_start(globals, game_header, game, moves,
+                                      plies_to_drop);
     } else {
       game_ok = false;
     }
@@ -2225,7 +2240,8 @@ static bool rewrite_moves(const StateInfo *globals, Game *game, Board *board,
 /* Rewrite the list of variations.
  * Return true if the variation are ok. a position that
  */
-static bool rewrite_variations(const StateInfo *globals, const Board *board,
+static bool rewrite_variations(const StateInfo *globals,
+                               GameHeader *game_header, const Board *board,
                                Variation *variation) {
   Board *copy_board = allocate_new_board();
   bool variations_ok = true;
@@ -2234,8 +2250,8 @@ static bool rewrite_variations(const StateInfo *globals, const Board *board,
     /* Work on the copy. */
     *copy_board = *board;
 
-    variations_ok =
-        rewrite_moves(globals, (Game *)NULL, copy_board, variation->moves);
+    variations_ok = rewrite_moves(globals, game_header, (Game *)NULL,
+                                  copy_board, variation->moves);
     variation = variation->next;
   }
   free_board(copy_board);
@@ -2247,12 +2263,15 @@ static bool rewrite_variations(const StateInfo *globals, const Board *board,
  * Return the final Board position if the game was rewritten alright,
  * NULL otherwise.
  */
-Board *rewrite_game(const StateInfo *globals, Game *current_game) {
-  Board *board = new_game_board(globals, current_game->tags[FEN_TAG]);
+Board *rewrite_game(const StateInfo *globals, GameHeader *game_header,
+                    Game *current_game) {
+  Board *board =
+      new_game_board(globals, game_header, current_game->tags[FEN_TAG]);
   bool game_ok;
 
   /* No null-move found at the start of the game. */
-  game_ok = rewrite_moves(globals, current_game, board, current_game->moves);
+  game_ok = rewrite_moves(globals, game_header, current_game, board,
+                          current_game->moves);
   if (game_ok) {
   } else if (globals->keep_broken_games) {
   } else {
@@ -2281,10 +2300,11 @@ static unsigned plies_in_move_sequence(Move *moves) {
  * If there are sufficient replace the game's FEN tag with
  * the revised starting state.
  */
-static bool drop_plies_from_start(const StateInfo *globals, Game *game,
+static bool drop_plies_from_start(const StateInfo *globals,
+                                  GameHeader *game_header, Game *game,
                                   Move *moves, int plies_to_drop) {
   char *fen = game->tags[FEN_TAG];
-  Board *board = new_game_board(globals, fen);
+  Board *board = new_game_board(globals, game_header, fen);
   bool game_ok = true;
   int plies = 0;
   Move *new_head = moves;
@@ -2338,7 +2358,7 @@ static bool drop_plies_from_start(const StateInfo *globals, Game *game,
         move_to_drop = move_to_drop->next;
       }
       move_to_drop->next = NULL;
-      free_move_list(moves);
+      free_move_list(game_header, moves);
     }
   } else {
     game_ok = false;
@@ -2361,10 +2381,10 @@ bool using_non_polyglot = false;
  * Generate and store the hash value for the variation, or the FEN
  * position in non_polyglot_codes_of_interest.
  */
-void store_hash_value(const StateInfo *globals, Move *move_details,
-                      const char *fen) {
+void store_hash_value(const StateInfo *globals, GameHeader *game_header,
+                      Move *move_details, const char *fen) {
   Move *move = move_details;
-  Board *board = new_game_board(globals, fen);
+  Board *board = new_game_board(globals, game_header, fen);
   bool Ok = true;
 
   while ((move != NULL) && Ok) {
@@ -2372,7 +2392,7 @@ void store_hash_value(const StateInfo *globals, Move *move_details,
     if (*(move->move) == '\0') {
       /* A comment node, not a proper move. */
       move = move->next;
-    } else if (apply_move(globals, move, board)) {
+    } else if (apply_move(globals, game_header, move, board)) {
       move = move->next;
     } else {
       print_error_context(globals, globals->logfile);

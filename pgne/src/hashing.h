@@ -55,7 +55,8 @@ typedef struct PositionCount {
   struct PositionCount *next;
 } PositionCount;
 
-bool check_duplicate_setup(const StateInfo *globals, const Game *game_details);
+bool check_duplicate_setup(const StateInfo *globals, GameHeader *game_header,
+                           const Game *game_details);
 bool check_for_only_repetition(const StateInfo *globals,
                                PositionCount *position_counts);
 void clear_duplicate_hash_table(const StateInfo *globals);

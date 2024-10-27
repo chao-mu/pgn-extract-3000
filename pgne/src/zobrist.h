@@ -26,6 +26,7 @@
 
 uint64_t generate_zobrist_hash_from_board(const Board *board);
 uint64_t generate_zobrist_hash_from_fen(const StateInfo *globals,
+                                        GameHeader *game_header,
                                         const char *fen);
 uint64_t piece_hash(char piece, int rank, int col);
 #endif

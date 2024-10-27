@@ -222,10 +222,11 @@ static variation_list *compose_variation(const StateInfo *globals, char *line) {
 /* Read each line of input and decompose it into a variation
  * to be placed in the games_to_keep list.
  */
-void add_textual_variations_from_file(const StateInfo *globals, FILE *fpin) {
+void add_textual_variations_from_file(const StateInfo *globals,
+                                      GameHeader *game_header, FILE *fpin) {
   char *line;
 
-  while ((line = read_line(globals, fpin)) != NULL) {
+  while ((line = read_line(globals, game_header, fpin)) != NULL) {
     add_textual_variation_from_line(globals, line);
   }
 }
@@ -251,7 +252,8 @@ void add_textual_variation_from_line(const StateInfo *globals, char *line) {
  * In doing so, set globals->depth_of_positional_search
  * if this variation is longer than the default.
  */
-static Move *compose_positional_variation(StateInfo *globals, char *line) {
+static Move *compose_positional_variation(StateInfo *globals,
+                                          GameHeader *game_header, char *line) {
   char *move;
   /* Build a linked list of the moves of the variation. */
   Move *head = NULL, *tail = NULL;
@@ -297,7 +299,7 @@ static Move *compose_positional_variation(StateInfo *globals, char *line) {
     }
   } else {
     if (head != NULL) {
-      free_move_list(head);
+      free_move_list(game_header, head);
     }
     head = NULL;
   }
@@ -307,23 +309,27 @@ static Move *compose_positional_variation(StateInfo *globals, char *line) {
 /* Read each line of input and decompose it into a positional variation
  * to be placed in the list of required hash values.
  */
-void add_positional_variations_from_file(StateInfo *globals, FILE *fpin) {
+void add_positional_variations_from_file(StateInfo *globals,
+                                         GameHeader *game_header, FILE *fpin) {
   char *line;
 
-  while ((line = read_line(globals, fpin)) != NULL) {
-    add_positional_variation_from_line(globals, line);
+  while ((line = read_line(globals, game_header, fpin)) != NULL) {
+    add_positional_variation_from_line(globals, game_header, line);
   }
 }
 
-void add_positional_variation_from_line(StateInfo *globals, char *line) {
+void add_positional_variation_from_line(StateInfo *globals,
+                                        GameHeader *game_header, char *line) {
   if (non_blank_line(line)) {
-    Move *next_variation = compose_positional_variation(globals, line);
+    Move *next_variation =
+        compose_positional_variation(globals, game_header, line);
     if (next_variation != NULL) {
       /* We need a NULL fen string, because this is from
        * the initial position.
        */
-      store_hash_value(globals, next_variation, (const char *)NULL);
-      free_move_list(next_variation);
+      store_hash_value(globals, game_header, next_variation,
+                       (const char *)NULL);
+      free_move_list(game_header, next_variation);
       /* We need to know globally that positional variations
        * are of interest.
        */
@@ -334,8 +340,9 @@ void add_positional_variation_from_line(StateInfo *globals, char *line) {
 
 /* Treat fen_string as being a position to be matched.
  */
-void add_fen_positional_match(StateInfo *globals, const char *fen_string) {
-  store_hash_value(globals, (Move *)NULL, fen_string);
+void add_fen_positional_match(StateInfo *globals, GameHeader *game_header,
+                              const char *fen_string) {
+  store_hash_value(globals, game_header, (Move *)NULL, fen_string);
   globals->positional_variations = true;
 }
 

@@ -55,31 +55,36 @@ static size_t line_length = 0;
 /* The buffer in which each output line of a game is built. */
 static char *output_line = NULL;
 
-static bool print_move(const StateInfo *globals, FILE *outputfile,
-                       unsigned move_number, bool print_move_number,
-                       bool white_to_move, const Move *move_details);
-static bool print_items_following_move(const StateInfo *globals,
-                                       FILE *outputfile,
-                                       const Move *move_details,
-                                       unsigned move_number,
-                                       bool white_to_move);
+static bool print_move(const StateInfo *globals, GameHeader *game_header,
+                       FILE *outputfile, unsigned move_number,
+                       bool print_move_number, bool white_to_move,
+                       const Move *move_details);
+static bool
+print_items_following_move(const StateInfo *globals, GameHeader *game_header,
+                           FILE *outputfile, const Move *move_details,
+                           unsigned move_number, bool white_to_move);
 static void output_STR(const StateInfo *globals, FILE *outfp, char **Tags);
 static void show_tags(const StateInfo *globals, FILE *outfp, char **Tags,
                       int tags_length);
 static char promoted_piece_letter(Piece piece);
-static void print_algebraic_game(const StateInfo *globals, Game *current_game,
+static void print_algebraic_game(const StateInfo *globals,
+                                 GameHeader *game_header, Game *current_game,
                                  FILE *outputfile, unsigned move_number,
                                  bool white_to_move, Board *final_board);
-static void print_EPD_game(const StateInfo *globals, Game *current_game,
-                           FILE *outputfile, unsigned move_number,
-                           bool white_to_move, Board *final_board);
-static void print_FEN_game(const StateInfo *globals, Game *current_game,
-                           FILE *outputfile, unsigned move_number,
-                           bool white_to_move, Board *final_board);
-static void print_EPD_move_list(const StateInfo *globals, Game *current_game,
+static void print_EPD_game(const StateInfo *globals, GameHeader *game_header,
+                           Game *current_game, FILE *outputfile,
+                           unsigned move_number, bool white_to_move,
+                           Board *final_board);
+static void print_FEN_game(const StateInfo *globals, GameHeader *game_header,
+                           Game *current_game, FILE *outputfile,
+                           unsigned move_number, bool white_to_move,
+                           Board *final_board);
+static void print_EPD_move_list(const StateInfo *globals,
+                                GameHeader *game_header, Game *current_game,
                                 FILE *outputfile, unsigned move_number,
                                 bool white_to_move, Board *final_board);
-static void print_FEN_move_list(const StateInfo *globals, Game *current_game,
+static void print_FEN_move_list(const StateInfo *globals,
+                                GameHeader *game_header, Game *current_game,
                                 FILE *outputfile, unsigned move_number,
                                 bool white_to_move, Board *final_board);
 static const char *build_FEN_comment(const StateInfo *globals,
@@ -89,11 +94,12 @@ static unsigned count_single_move_ply(const Move *move_details,
                                       bool count_variations);
 static unsigned count_move_list_ply(Move *move_list, bool count_variations);
 static void print_space_separated_str(const StateInfo *globals,
-                                      FILE *outputfile, const char *str);
+                                      GameHeader *game_header, FILE *outputfile,
+                                      const char *str);
 static void start_comment(const StateInfo *globals, FILE *outputfile);
 static void end_comment(const StateInfo *globals, FILE *outputfile);
-static void print_as_comment(const StateInfo *globals, FILE *outputfile,
-                             const char *str);
+static void print_as_comment(const StateInfo *globals, GameHeader *game_header,
+                             FILE *outputfile, const char *str);
 static CommentList *create_line_number_comment(const StateInfo *globals,
                                                const Game *game);
 
@@ -423,7 +429,8 @@ void terminate_line(const StateInfo *globals, FILE *fp) {
 /* Print str to fp and update how much of the line
  * has been printed on.
  */
-void print_str(const StateInfo *globals, FILE *fp, const char *str) {
+void print_str(const StateInfo *globals, GameHeader *game_header, FILE *fp,
+               const char *str) {
   if (globals->max_line_length == 0) {
     fputs(str, fp);
     return;
@@ -436,7 +443,7 @@ void print_str(const StateInfo *globals, FILE *fp, const char *str) {
             "String length %lu is too long for the line length of %lu:\n",
             (unsigned long)len, (unsigned long)globals->max_line_length);
     fprintf(globals->logfile, "%s\n", str);
-    report_details(globals->logfile);
+    report_details(game_header, globals->logfile);
     fprintf(fp, "%s\n", str);
   } else {
     sprintf(&(output_line[line_length]), "%s", str);
@@ -448,12 +455,13 @@ void print_str(const StateInfo *globals, FILE *fp, const char *str) {
  * pieces to take account of line-breaks.
  * The str should not contain newline characters.
  */
-static void print_space_separated_str(const StateInfo *globals, FILE *fp,
+static void print_space_separated_str(const StateInfo *globals,
+                                      GameHeader *game_header, FILE *fp,
                                       const char *str) {
   char *copy = copy_string(str);
   const char *chunk = strtok(copy, " ");
   while (chunk != NULL) {
-    print_str(globals, fp, chunk);
+    print_str(globals, game_header, fp, chunk);
     chunk = strtok((char *)NULL, " ");
     if (chunk != NULL) {
       print_separator(globals, fp);
@@ -462,7 +470,8 @@ static void print_space_separated_str(const StateInfo *globals, FILE *fp,
   (void)free((void *)copy);
 }
 
-static void print_comment_list(const StateInfo *globals, FILE *fp,
+static void print_comment_list(const StateInfo *globals,
+                               GameHeader *game_header, FILE *fp,
                                CommentList *comment_list) {
   CommentList *next_comment;
 
@@ -473,7 +482,7 @@ static void print_comment_list(const StateInfo *globals, FILE *fp,
     if (comment != NULL) {
       start_comment(globals, fp);
       for (; comment != NULL; comment = comment->next) {
-        print_space_separated_str(globals, fp, comment->str);
+        print_space_separated_str(globals, game_header, fp, comment->str);
         if (comment->next != NULL) {
           print_separator(globals, fp);
         }
@@ -483,9 +492,9 @@ static void print_comment_list(const StateInfo *globals, FILE *fp,
   }
 }
 
-static void print_move_list(const StateInfo *globals, FILE *outputfile,
-                            unsigned move_number, bool white_to_move,
-                            const Move *move_details,
+static void print_move_list(const StateInfo *globals, GameHeader *game_header,
+                            FILE *outputfile, unsigned move_number,
+                            bool white_to_move, const Move *move_details,
                             const Board *final_board) {
   bool print_move_number = true;
   const Move *move = move_details;
@@ -515,8 +524,9 @@ static void print_move_list(const StateInfo *globals, FILE *outputfile,
     }
 
     /* Reset print_move number if a variation was printed. */
-    print_move_number = print_move(globals, outputfile, move_number,
-                                   print_move_number, white_to_move, move);
+    print_move_number =
+        print_move(globals, game_header, outputfile, move_number,
+                   print_move_number, white_to_move, move);
 
     /* See if there is a result attached.  This may be attached either
      * to a move or a comment.
@@ -536,13 +546,13 @@ static void print_move_list(const StateInfo *globals, FILE *outputfile,
         } else {
           print_separator(globals, outputfile);
           const char *comment = build_FEN_comment(globals, final_board);
-          print_str(globals, outputfile, comment);
+          print_str(globals, game_header, outputfile, comment);
           (void)free((void *)comment);
         }
       }
       if (globals->keep_results) {
         print_separator(globals, outputfile);
-        print_str(globals, outputfile, move->terminating_result);
+        print_str(globals, game_header, outputfile, move->terminating_result);
       }
     }
     if (move->move[0] != '\0') {
@@ -597,7 +607,7 @@ static void print_move_list(const StateInfo *globals, FILE *outputfile,
       }
       if (move->terminating_result != NULL) {
         print_separator(globals, outputfile);
-        print_str(globals, outputfile, "*");
+        print_str(globals, game_header, outputfile, "*");
       }
     }
   }
@@ -612,16 +622,17 @@ static void print_move_list(const StateInfo *globals, FILE *outputfile,
 /* A length to accommodate move numbers. */
 #define SMALL_MOVE_NUMBER_LENGTH (20)
 
-static bool print_move(const StateInfo *globals, FILE *outputfile,
-                       unsigned move_number, bool print_move_number,
-                       bool white_to_move, const Move *move_details) {
+static bool print_move(const StateInfo *globals, GameHeader *game_header,
+                       FILE *outputfile, unsigned move_number,
+                       bool print_move_number, bool white_to_move,
+                       const Move *move_details) {
   bool something_printed = false;
   OutputFormat output_format = globals->output_format;
 
   if (move_details == NULL) {
     /* Shouldn't happen. */
     fprintf(globals->logfile, "Internal error: NULL move in print_move.\n");
-    report_details(globals->logfile);
+    report_details(game_header, globals->logfile);
   } else {
     if (globals->check_only) {
       /* Nothing to be output. */
@@ -638,7 +649,7 @@ static bool print_move(const StateInfo *globals, FILE *outputfile,
           /* @@@ Should 1... be written as 1. ... ? */
           sprintf(small_number, "%u.%s", move_number,
                   white_to_move ? "" : "..");
-          print_str(globals, outputfile, small_number);
+          print_str(globals, game_header, outputfile, small_number);
           print_separator(globals, outputfile);
         }
         switch (output_format) {
@@ -801,7 +812,7 @@ static bool print_move(const StateInfo *globals, FILE *outputfile,
         /* An empty move. */
         fprintf(globals->logfile,
                 "Internal error: Empty move in print_move.\n");
-        report_details(globals->logfile);
+        report_details(game_header, globals->logfile);
         move_to_print = NULL;
       }
       if (globals->json_format) {
@@ -813,14 +824,15 @@ static bool print_move(const StateInfo *globals, FILE *outputfile,
         fputs("\"", outputfile);
       } else {
         if (move_to_print != NULL) {
-          print_str(globals, outputfile, move_to_print);
+          print_str(globals, game_header, outputfile, move_to_print);
         }
       }
       if (move_to_print != NULL) {
         (void)free(move_to_print);
       }
-      if (print_items_following_move(globals, outputfile, move_details,
-                                     move_number, white_to_move)) {
+      if (print_items_following_move(globals, game_header, outputfile,
+                                     move_details, move_number,
+                                     white_to_move)) {
         something_printed = true;
       }
     }
@@ -828,7 +840,7 @@ static bool print_move(const StateInfo *globals, FILE *outputfile,
 
   // HACK: Numbers had no preceding spaces in tsv format
   if (globals->tsv_format) {
-    print_str(globals, outputfile, " ");
+    print_str(globals, game_header, outputfile, " ");
   }
 
   return something_printed;
@@ -844,16 +856,16 @@ static bool print_move(const StateInfo *globals, FILE *outputfile,
  * such as NAGs and comments.
  * Return true if something was printed for non JSON format output.
  */
-static bool print_items_following_move(const StateInfo *globals,
-                                       FILE *outputfile,
-                                       const Move *move_details,
-                                       unsigned move_number,
-                                       bool white_to_move) {
+static bool
+print_items_following_move(const StateInfo *globals, GameHeader *game_header,
+                           FILE *outputfile, const Move *move_details,
+                           unsigned move_number, bool white_to_move) {
   bool something_printed = false;
   Nag *nags = move_details->NAGs;
   Variation *variants = move_details->Variants;
   if (move_details->comment_list != NULL && globals->keep_comments) {
-    print_comment_list(globals, outputfile, move_details->comment_list);
+    print_comment_list(globals, game_header, outputfile,
+                       move_details->comment_list);
     something_printed = true;
   }
   if (nags != NULL) {
@@ -879,7 +891,7 @@ static bool print_items_following_move(const StateInfo *globals,
             }
           } else {
             print_separator(globals, outputfile);
-            print_str(globals, outputfile, text->str);
+            print_str(globals, game_header, outputfile, text->str);
           }
           text = text->next;
         }
@@ -887,7 +899,7 @@ static bool print_items_following_move(const StateInfo *globals,
       if (nags->comments != NULL && globals->keep_comments) {
         // @@@ JSON option needed.
 
-        print_comment_list(globals, outputfile, nags->comments);
+        print_comment_list(globals, game_header, outputfile, nags->comments);
         something_printed = true;
       }
       nags = nags->next;
@@ -912,7 +924,7 @@ static bool print_items_following_move(const StateInfo *globals,
         exit(1);
       }
 
-      print_as_comment(globals, outputfile, evaluation);
+      print_as_comment(globals, game_header, outputfile, evaluation);
       (void)free((void *)evaluation);
       something_printed = true;
     }
@@ -927,9 +939,10 @@ static bool print_items_following_move(const StateInfo *globals,
                 move_details->fen_suffix);
       } else {
         start_comment(globals, outputfile);
-        print_space_separated_str(globals, outputfile, move_details->epd);
+        print_space_separated_str(globals, game_header, outputfile,
+                                  move_details->epd);
         print_separator(globals, outputfile);
-        print_space_separated_str(globals, outputfile,
+        print_space_separated_str(globals, game_header, outputfile,
                                   move_details->fen_suffix);
         end_comment(globals, outputfile);
         something_printed = true;
@@ -946,7 +959,7 @@ static bool print_items_following_move(const StateInfo *globals,
     } else {
       char *hashcode = (char *)malloc_or_die(HASH_64_BIT_SPACE + 1);
       sprintf(hashcode, "%016" PRIx64, move_details->zobrist);
-      print_as_comment(globals, outputfile, hashcode);
+      print_as_comment(globals, game_header, outputfile, hashcode);
       (void)free((void *)hashcode);
       something_printed = true;
     }
@@ -958,17 +971,19 @@ static bool print_items_following_move(const StateInfo *globals,
           print_separator(globals, outputfile);
           print_single_char(globals, outputfile, '(');
           if (globals->keep_comments && (variants->prefix_comment != NULL)) {
-            print_comment_list(globals, outputfile, variants->prefix_comment);
+            print_comment_list(globals, game_header, outputfile,
+                               variants->prefix_comment);
             print_separator(globals, outputfile);
           }
           /* Always start with a move number.
            * The final board position is not needed.
            */
-          print_move_list(globals, outputfile, move_number, white_to_move,
-                          variants->moves, (const Board *)NULL);
+          print_move_list(globals, game_header, outputfile, move_number,
+                          white_to_move, variants->moves, (const Board *)NULL);
           print_single_char(globals, outputfile, ')');
           if (globals->keep_comments && (variants->suffix_comment != NULL)) {
-            print_comment_list(globals, outputfile, variants->suffix_comment);
+            print_comment_list(globals, game_header, outputfile,
+                               variants->suffix_comment);
           }
           variants = variants->next;
         }
@@ -985,7 +1000,8 @@ static bool print_items_following_move(const StateInfo *globals,
        */
       while (variants != NULL) {
         if (variants->suffix_comment != NULL) {
-          print_comment_list(globals, outputfile, variants->suffix_comment);
+          print_comment_list(globals, game_header, outputfile,
+                             variants->suffix_comment);
           something_printed = true;
         }
         variants = variants->next;
@@ -1020,10 +1036,10 @@ static void end_comment(const StateInfo *globals, FILE *outputfile) {
 }
 
 /* Print str as a comment. */
-static void print_as_comment(const StateInfo *globals, FILE *outputfile,
-                             const char *str) {
+static void print_as_comment(const StateInfo *globals, GameHeader *game_header,
+                             FILE *outputfile, const char *str) {
   start_comment(globals, outputfile);
-  print_str(globals, outputfile, str);
+  print_str(globals, game_header, outputfile, str);
   end_comment(globals, outputfile);
 }
 
@@ -1108,16 +1124,16 @@ static void output_cm_result(const char *result, FILE *outputfile) {
 /* Output the game in Chess Master format.
  * This is probably obsolete.
  */
-static void output_cm_game(const StateInfo *globals, FILE *outputfile,
-                           unsigned move_number, bool white_to_move,
-                           const Game *game) {
+static void output_cm_game(const StateInfo *globals, GameHeader *game_header,
+                           FILE *outputfile, unsigned move_number,
+                           bool white_to_move, const Game *game) {
   const Move *move = game->moves;
 
   if ((move_number != 1) || (!white_to_move)) {
     fprintf(
         globals->logfile,
         "Unable to output CM games other than from the starting position.\n");
-    report_details(globals->logfile);
+    report_details(game_header, globals->logfile);
   }
   fprintf(outputfile, "WHITE: %s\n",
           game->tags[WHITE_TAG] != NULL ? game->tags[WHITE_TAG] : "");
@@ -1198,8 +1214,8 @@ static void output_cm_game(const StateInfo *globals, FILE *outputfile,
 }
 
 /* Output the current game according to the required output format. */
-void format_game(const StateInfo *globals, Game *current_game,
-                 FILE *outputfile) {
+void format_game(const StateInfo *globals, GameHeader *game_header,
+                 Game *current_game, FILE *outputfile) {
   bool white_to_move = true;
   unsigned move_number = 1;
   Board *initial_board;
@@ -1218,8 +1234,9 @@ void format_game(const StateInfo *globals, Game *current_game,
    * SAN (Standard Algebraic Notation) unless the original
    * source form is required.
    */
-  final_board = rewrite_game(globals, current_game);
-  initial_board = new_game_board(globals, current_game->tags[FEN_TAG]);
+  final_board = rewrite_game(globals, game_header, current_game);
+  initial_board =
+      new_game_board(globals, game_header, current_game->tags[FEN_TAG]);
 
   /* If we aren't starting from the initial setup, then we
    * need to know the current move number and whose
@@ -1253,20 +1270,20 @@ void format_game(const StateInfo *globals, Game *current_game,
     case XLALG:
     case XOLALG:
     case UCI:
-      print_algebraic_game(globals, current_game, outputfile, move_number,
-                           white_to_move, final_board);
+      print_algebraic_game(globals, game_header, current_game, outputfile,
+                           move_number, white_to_move, final_board);
       break;
     case EPD:
-      print_EPD_game(globals, current_game, outputfile, move_number,
-                     white_to_move, initial_board);
+      print_EPD_game(globals, game_header, current_game, outputfile,
+                     move_number, white_to_move, initial_board);
       break;
     case FEN:
-      print_FEN_game(globals, current_game, outputfile, move_number,
-                     white_to_move, initial_board);
+      print_FEN_game(globals, game_header, current_game, outputfile,
+                     move_number, white_to_move, initial_board);
       break;
     case CM:
-      output_cm_game(globals, outputfile, move_number, white_to_move,
-                     current_game);
+      output_cm_game(globals, game_header, outputfile, move_number,
+                     white_to_move, current_game);
       break;
     default:
       fprintf(globals->logfile,
@@ -1396,7 +1413,8 @@ static const char *format_epd_game_comment(const StateInfo *globals,
   return comment;
 }
 
-static void print_algebraic_game(const StateInfo *globals, Game *current_game,
+static void print_algebraic_game(const StateInfo *globals,
+                                 GameHeader *game_header, Game *current_game,
                                  FILE *outputfile, unsigned move_number,
                                  bool white_to_move, Board *final_board) {
   if (globals->json_format) {
@@ -1449,7 +1467,8 @@ static void print_algebraic_game(const StateInfo *globals, Game *current_game,
     exit(1);
   }
   if ((globals->keep_comments) && (current_game->prefix_comment != NULL)) {
-    print_comment_list(globals, outputfile, current_game->prefix_comment);
+    print_comment_list(globals, game_header, outputfile,
+                       current_game->prefix_comment);
     if (!globals->tsv_format) {
       terminate_line(globals, outputfile);
       putc('\n', outputfile);
@@ -1458,7 +1477,7 @@ static void print_algebraic_game(const StateInfo *globals, Game *current_game,
   if (globals->json_format) {
     fputs("\"Moves\":[", outputfile);
   }
-  print_move_list(globals, outputfile, move_number, white_to_move,
+  print_move_list(globals, game_header, outputfile, move_number, white_to_move,
                   current_game->moves, final_board);
 
   if (globals->json_format) {
@@ -1468,7 +1487,8 @@ static void print_algebraic_game(const StateInfo *globals, Game *current_game,
   if (current_game->moves == NULL) {
     if (current_game->tags[RESULT_TAG] != NULL) {
       if (!globals->json_format) {
-        print_str(globals, outputfile, current_game->tags[RESULT_TAG]);
+        print_str(globals, game_header, outputfile,
+                  current_game->tags[RESULT_TAG]);
       }
     } else {
       fprintf(globals->logfile,
@@ -1485,7 +1505,8 @@ static void print_algebraic_game(const StateInfo *globals, Game *current_game,
   }
 }
 
-static void print_EPD_move_list(const StateInfo *globals, Game *current_game,
+static void print_EPD_move_list(const StateInfo *globals,
+                                GameHeader *game_header, Game *current_game,
                                 FILE *outputfile, unsigned move_number,
                                 bool white_to_move, Board *initial_board) {
   const char *game_comment;
@@ -1522,7 +1543,7 @@ static void print_EPD_move_list(const StateInfo *globals, Game *current_game,
       }
     } else {
       fprintf(globals->logfile, "Internal error: Missing EPD\n");
-      report_details(globals->logfile);
+      report_details(game_header, globals->logfile);
       exit(1);
     }
     move = move->next;
@@ -1530,7 +1551,8 @@ static void print_EPD_move_list(const StateInfo *globals, Game *current_game,
   (void)free((void *)game_comment);
 }
 
-static void print_FEN_move_list(const StateInfo *globals, Game *current_game,
+static void print_FEN_move_list(const StateInfo *globals,
+                                GameHeader *game_header, Game *current_game,
                                 FILE *outputfile, unsigned move_number,
                                 bool white_to_move, Board *initial_board) {
   Board *board = initial_board;
@@ -1553,7 +1575,7 @@ static void print_FEN_move_list(const StateInfo *globals, Game *current_game,
 
   while (move != NULL && keepPrinting) {
     if (move->move[0] != '\0') {
-      if (apply_move(globals, move, board)) {
+      if (apply_move(globals, game_header, move, board)) {
         const char *FEN_string = get_FEN_string(globals, board);
         fprintf(globals->outputfile, "%s\n", FEN_string);
         free((void *)FEN_string);
@@ -1573,19 +1595,21 @@ static void print_FEN_move_list(const StateInfo *globals, Game *current_game,
   }
 }
 
-static void print_EPD_game(const StateInfo *globals, Game *current_game,
-                           FILE *outputfile, unsigned move_number,
-                           bool white_to_move, Board *initial_board) {
+static void print_EPD_game(const StateInfo *globals, GameHeader *game_header,
+                           Game *current_game, FILE *outputfile,
+                           unsigned move_number, bool white_to_move,
+                           Board *initial_board) {
   if (!globals->check_only) {
-    print_EPD_move_list(globals, current_game, outputfile, move_number,
-                        white_to_move, initial_board);
+    print_EPD_move_list(globals, game_header, current_game, outputfile,
+                        move_number, white_to_move, initial_board);
     putc('\n', outputfile);
   }
 }
 
-static void print_FEN_game(const StateInfo *globals, Game *current_game,
-                           FILE *outputfile, unsigned move_number,
-                           bool white_to_move, Board *initial_board) {
+static void print_FEN_game(const StateInfo *globals, GameHeader *game_header,
+                           Game *current_game, FILE *outputfile,
+                           unsigned move_number, bool white_to_move,
+                           Board *initial_board) {
   if (!globals->check_only) {
     /* Report details on the output. */
     if (globals->tag_output_format == ALL_TAGS) {
@@ -1599,8 +1623,8 @@ static void print_FEN_game(const StateInfo *globals, Game *current_game,
               globals->tag_output_format);
       exit(1);
     }
-    print_FEN_move_list(globals, current_game, outputfile, move_number,
-                        white_to_move, initial_board);
+    print_FEN_move_list(globals, game_header, current_game, outputfile,
+                        move_number, white_to_move, initial_board);
     putc('\n', outputfile);
   }
 }

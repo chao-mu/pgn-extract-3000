@@ -64,7 +64,8 @@ static const int argument_prefix_len = sizeof(argument_prefix) - 1;
 static ArgType classify_arg(const StateInfo *globals, const char *line);
 static game_number *extract_game_number_list(const StateInfo *globals,
                                              const char *number_list);
-static void read_args_file(StateInfo *globals, const char *infile);
+static void read_args_file(StateInfo *globals, GameHeader *game_header,
+                           const char *infile);
 static bool set_move_bounds(StateInfo *globals, char bounds_or_ply, char limit,
                             unsigned number);
 
@@ -326,7 +327,8 @@ static void usage_and_exit(const StateInfo *globals) {
   exit(1);
 }
 
-static void read_args_file(StateInfo *globals, const char *infile) {
+static void read_args_file(StateInfo *globals, GameHeader *game_header,
+                           const char *infile) {
   char *line;
   FILE *fp = fopen(infile, "r");
 
@@ -336,7 +338,7 @@ static void read_args_file(StateInfo *globals, const char *infile) {
   } else {
     ArgType linetype = NO_ARGUMENT_MATCH;
     ArgType nexttype;
-    while ((line = read_line(globals, fp)) != NULL) {
+    while ((line = read_line(globals, game_header, fp)) != NULL) {
       if (blank_line(line)) {
         (void)free((void *)line);
         continue;
@@ -353,13 +355,13 @@ static void read_args_file(StateInfo *globals, const char *infile) {
             add_textual_variation_from_line(globals, line);
             break;
           case POSITIONS_ARGUMENT:
-            add_positional_variation_from_line(globals, line);
+            add_positional_variation_from_line(globals, game_header, line);
             break;
           case TAGS_ARGUMENT:
-            process_tag_line(globals, infile, line, true);
+            process_tag_line(globals, game_header, infile, line, true);
             break;
           case TAG_ROSTER_ARGUMENT:
-            process_roster_line(globals, line);
+            process_roster_line(globals, game_header, line);
             break;
           case ENDINGS_ARGUMENT:
           case ENDINGS_COLOURED_ARGUMENT:
@@ -407,7 +409,7 @@ static void read_args_file(StateInfo *globals, const char *infile) {
         case TAG_EXTRACTION_ARGUMENT:
         case LINE_WIDTH_ARGUMENT:
         case OUTPUT_FORMAT_ARGUMENT:
-          process_argument(globals, line[argument_prefix_len],
+          process_argument(globals, game_header, line[argument_prefix_len],
                            &line[argument_prefix_len + 1]);
           linetype = NO_ARGUMENT_MATCH;
           break;
@@ -420,11 +422,11 @@ static void read_args_file(StateInfo *globals, const char *infile) {
             char *just_arg = (char *)malloc_or_die(arglen + 1);
             strncpy(just_arg, arg, arglen);
             just_arg[arglen] = '\0';
-            process_long_form_argument(globals, just_arg,
+            process_long_form_argument(globals, game_header, just_arg,
                                        skip_leading_spaces(space));
             (void)free((void *)just_arg);
           } else {
-            process_long_form_argument(globals, arg, "");
+            process_long_form_argument(globals, game_header, arg, "");
             linetype = NO_ARGUMENT_MATCH;
           }
         } break;
@@ -448,7 +450,7 @@ static void read_args_file(StateInfo *globals, const char *infile) {
         case SUPPRESS_ORIGINALS_ARGUMENT:
         case DONT_KEEP_VARIATIONS_ARGUMENT:
         case USE_VIRTUAL_HASH_TABLE_ARGUMENT:
-          process_argument(globals, line[argument_prefix_len], "");
+          process_argument(globals, game_header, line[argument_prefix_len], "");
           linetype = NO_ARGUMENT_MATCH;
           break;
 
@@ -462,7 +464,7 @@ static void read_args_file(StateInfo *globals, const char *infile) {
         case OUTPUT_FEN_STRING_ARGUMENT:
         case POSITIONS_ARGUMENT:
         case TAG_ROSTER_ARGUMENT:
-          process_argument(globals, line[argument_prefix_len],
+          process_argument(globals, game_header, line[argument_prefix_len],
                            &line[argument_prefix_len + 1]);
           break;
         case TAGS_ARGUMENT:
@@ -560,8 +562,8 @@ static ArgType classify_arg(const StateInfo *globals, const char *line) {
  * NB: If the associated_value is to be used beyond this function,
  * it must be copied.
  */
-void process_argument(StateInfo *globals, char arg_letter,
-                      const char *associated_value) {
+void process_argument(StateInfo *globals, GameHeader *game_header,
+                      char arg_letter, const char *associated_value) {
   /* Provide an alias for associated_value because it will
    * often represent a file name.
    */
@@ -670,7 +672,7 @@ void process_argument(StateInfo *globals, char arg_letter,
         add_filename_to_source_list(globals, filename, CHECKFILE);
       } else {
         FILE *fp = must_open_file(globals, filename, "r");
-        add_filename_list_from_file(globals, fp, CHECKFILE);
+        add_filename_list_from_file(globals, game_header, fp, CHECKFILE);
         (void)fclose(fp);
       }
     }
@@ -678,7 +680,7 @@ void process_argument(StateInfo *globals, char arg_letter,
   case FILE_OF_FILES_ARGUMENT:
     if (*filename != '\0') {
       FILE *fp = must_open_file(globals, filename, "r");
-      add_filename_list_from_file(globals, fp, NORMALFILE);
+      add_filename_list_from_file(globals, game_header, fp, NORMALFILE);
       (void)fclose(fp);
     } else {
       fprintf(globals->logfile, "Filename expected with -%c\n", arg_letter);
@@ -758,7 +760,7 @@ void process_argument(StateInfo *globals, char arg_letter,
   case FILE_OF_ARGUMENTS_ARGUMENT:
     if (*filename != '\0') {
       /* @@@ Potentially recursive call. Is this safe? */
-      read_args_file(globals, filename);
+      read_args_file(globals, game_header, filename);
     } else {
       fprintf(globals->logfile, "Usage: -%cfilename.\n", arg_letter);
     }
@@ -923,12 +925,12 @@ void process_argument(StateInfo *globals, char arg_letter,
 
   case TAGS_ARGUMENT:
     if (*filename != '\0') {
-      read_tag_file(globals, filename, true);
+      read_tag_file(globals, game_header, filename, true);
     }
     break;
   case TAG_ROSTER_ARGUMENT:
     if (*filename != '\0') {
-      read_tag_roster_file(globals, filename);
+      read_tag_roster_file(globals, game_header, filename);
     }
     break;
   case MOVES_ARGUMENT:
@@ -936,7 +938,7 @@ void process_argument(StateInfo *globals, char arg_letter,
       /* Where the list of variations of interest are kept. */
       FILE *variation_file = must_open_file(globals, filename, "r");
       /* We wish to search for particular variations. */
-      add_textual_variations_from_file(globals, variation_file);
+      add_textual_variations_from_file(globals, game_header, variation_file);
       fclose(variation_file);
     }
     break;
@@ -944,14 +946,15 @@ void process_argument(StateInfo *globals, char arg_letter,
     if (*filename != '\0') {
       FILE *variation_file = must_open_file(globals, filename, "r");
       /* We wish to search for positional variations. */
-      add_positional_variations_from_file(globals, variation_file);
+      add_positional_variations_from_file(globals, game_header, variation_file);
       fclose(variation_file);
     }
     break;
   case ENDINGS_ARGUMENT:
   case ENDINGS_COLOURED_ARGUMENT:
     if (*filename != '\0') {
-      if (!build_endings(globals, filename, arg_letter == ENDINGS_ARGUMENT)) {
+      if (!build_endings(globals, game_header, filename,
+                         arg_letter == ENDINGS_ARGUMENT)) {
         exit(1);
       }
     }
@@ -978,7 +981,8 @@ void process_argument(StateInfo *globals, char arg_letter,
  * The associated_value will only be required by some arguments.
  * Return whether one or both were required.
  */
-int process_long_form_argument(StateInfo *globals, const char *argument,
+int process_long_form_argument(StateInfo *globals, GameHeader *game_header,
+                               const char *argument,
                                const char *associated_value) {
   if (stringcompare(argument, "addfencastling") == 0) {
     globals->add_fen_castling = true;
@@ -996,7 +1000,8 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
     globals->allow_null_moves = true;
     return 1;
   } else if (stringcompare(argument, "append") == 0) {
-    process_argument(globals, APPEND_TO_OUTPUT_FILE_ARGUMENT, associated_value);
+    process_argument(globals, game_header, APPEND_TO_OUTPUT_FILE_ARGUMENT,
+                     associated_value);
     return 2;
   } else if (stringcompare(argument, "btm") == 0) {
     if (globals->whose_move == EITHER_TO_MOVE) {
@@ -1008,10 +1013,11 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
     }
     return 1;
   } else if (stringcompare(argument, "checkfile") == 0) {
-    process_argument(globals, CHECK_FILE_ARGUMENT, associated_value);
+    process_argument(globals, game_header, CHECK_FILE_ARGUMENT,
+                     associated_value);
     return 2;
   } else if (stringcompare(argument, "checkmate") == 0) {
-    process_argument(globals, MATCH_CHECKMATE_ARGUMENT, "");
+    process_argument(globals, game_header, MATCH_CHECKMATE_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "commented") == 0) {
     if (!globals->keep_comments) {
@@ -1031,7 +1037,7 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
   } else if (stringcompare(argument, "detag") == 0) {
     /* Save the tag to be dropped. */
     if (associated_value != NULL) {
-      suppress_tag(globals, associated_value);
+      suppress_tag(globals, game_header, associated_value);
     } else {
       fprintf(globals->logfile, "--%s requires a tag name following it.\n",
               argument);
@@ -1061,7 +1067,8 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
     }
     return 2;
   } else if (stringcompare(argument, "duplicates") == 0) {
-    process_argument(globals, DUPLICATES_FILE_ARGUMENT, associated_value);
+    process_argument(globals, game_header, DUPLICATES_FILE_ARGUMENT,
+                     associated_value);
     return 2;
   } else if (stringcompare(argument, "evaluation") == 0) {
     /* Output an evaluation is required with each move. */
@@ -1156,7 +1163,7 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
     globals->add_hashcode_comments = true;
     return 1;
   } else if (stringcompare(argument, "help") == 0) {
-    process_argument(globals, HELP_ARGUMENT, "");
+    process_argument(globals, game_header, HELP_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "insufficient") == 0) {
     if (globals->match_only_checkmate) {
@@ -1184,7 +1191,8 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
     globals->lichess_comment_fix = true;
     return 1;
   } else if (stringcompare(argument, "linelength") == 0) {
-    process_argument(globals, LINE_WIDTH_ARGUMENT, associated_value);
+    process_argument(globals, game_header, LINE_WIDTH_ARGUMENT,
+                     associated_value);
     return 2;
   } else if (stringcompare(argument, "linenumbers") == 0) {
     /* Save the marker string to be output. */
@@ -1329,10 +1337,10 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
     globals->keep_checks = false;
     return 1;
   } else if (stringcompare(argument, "nocomments") == 0) {
-    process_argument(globals, DONT_KEEP_COMMENTS_ARGUMENT, "");
+    process_argument(globals, game_header, DONT_KEEP_COMMENTS_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "noduplicates") == 0) {
-    process_argument(globals, DONT_KEEP_DUPLICATES_ARGUMENT, "");
+    process_argument(globals, game_header, DONT_KEEP_DUPLICATES_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "nofauxep") == 0) {
     globals->suppress_redundant_ep_info = true;
@@ -1341,7 +1349,7 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
     globals->keep_move_numbers = false;
     return 1;
   } else if (stringcompare(argument, "nonags") == 0) {
-    process_argument(globals, DONT_KEEP_NAGS_ARGUMENT, "");
+    process_argument(globals, game_header, DONT_KEEP_NAGS_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "nosetuptags") == 0) {
     if (globals->setup_status != SETUP_TAG_OK) {
@@ -1365,10 +1373,10 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
     }
     return 1;
   } else if (stringcompare(argument, "nounique") == 0) {
-    process_argument(globals, SUPPRESS_ORIGINALS_ARGUMENT, "");
+    process_argument(globals, game_header, SUPPRESS_ORIGINALS_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "novars") == 0) {
-    process_argument(globals, DONT_KEEP_VARIATIONS_ARGUMENT, "");
+    process_argument(globals, game_header, DONT_KEEP_VARIATIONS_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "onlysetuptags") == 0) {
     if (globals->setup_status != SETUP_TAG_OK) {
@@ -1379,7 +1387,8 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
     globals->setup_status = SETUP_TAG_ONLY;
     return 1;
   } else if (stringcompare(argument, "output") == 0) {
-    process_argument(globals, WRITE_TO_OUTPUT_FILE_ARGUMENT, associated_value);
+    process_argument(globals, game_header, WRITE_TO_OUTPUT_FILE_ARGUMENT,
+                     associated_value);
     return 2;
   } else if (stringcompare(argument, "plycount") == 0) {
     globals->output_plycount = true;
@@ -1462,7 +1471,7 @@ int process_long_form_argument(StateInfo *globals, const char *argument,
     }
     return 2;
   } else if (stringcompare(argument, "seven") == 0) {
-    process_argument(globals, SEVEN_TAG_ROSTER_ARGUMENT, "");
+    process_argument(globals, game_header, SEVEN_TAG_ROSTER_ARGUMENT, "");
     return 1;
   } else if (stringcompare(argument, "seventyfive") == 0 ||
              stringcompare(argument, "75") == 0) {

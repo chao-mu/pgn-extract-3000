@@ -26,11 +26,15 @@
 
 #include <stdbool.h>
 
-void add_positional_variations_from_file(StateInfo *globals, FILE *fpin);
-void add_positional_variation_from_line(StateInfo *globals, char *line);
-void add_textual_variations_from_file(const StateInfo *globals, FILE *fpin);
+void add_positional_variations_from_file(StateInfo *globals,
+                                         GameHeader *game_header, FILE *fpin);
+void add_positional_variation_from_line(StateInfo *globals,
+                                        GameHeader *game_header, char *line);
+void add_textual_variations_from_file(const StateInfo *globals,
+                                      GameHeader *game_header, FILE *fpin);
 void add_textual_variation_from_line(const StateInfo *globals, char *line);
-void add_fen_positional_match(StateInfo *globals, const char *fen_string);
+void add_fen_positional_match(StateInfo *globals, GameHeader *game_header,
+                              const char *fen_string);
 void add_fen_pattern_match(StateInfo *globals, const char *fen_pattern,
                            bool add_reverse, const char *label);
 bool check_for_only_checkmate(const StateInfo *globals,
@@ -44,5 +48,7 @@ bool check_textual_variations(const StateInfo *globals,
                               const Game *game_details);
 bool is_stalemate(const StateInfo *globals, const Board *board,
                   const Move *moves);
+
+void free_move_list(GameHeader *game_header, Move *move_list);
 
 #endif // MOVES_H

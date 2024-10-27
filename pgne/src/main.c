@@ -139,7 +139,6 @@ static StateInfo GlobalState = {
 void init_default_global_state(void) {
   GlobalState.outputfile = stdout;
   GlobalState.logfile = stderr;
-  set_output_line_length(&GlobalState, MAX_LINE_LENGTH);
 }
 /* The maximum length of an output line.  This is conservatively
  * slightly smaller than the PGN export standard of 80.
@@ -150,10 +149,14 @@ int main(int argc, char *argv[]) {
   int argnum;
 
   StateInfo *globals = &GlobalState;
+
+  /* Prepare the Game_Header. */
+  GameHeader game_header = new_game_header();
+
+  set_output_line_length(globals, MAX_LINE_LENGTH);
+
   /* Prepare global state. */
   init_default_global_state();
-  /* Prepare the Game_Header. */
-  init_game_header();
   /* Prepare the tag lists for -t/-T matching. */
   init_tag_lists();
   /* Prepare the hash tables for transposition detection. */
@@ -179,13 +182,13 @@ int main(int argc, char *argv[]) {
       case MATCH_CHECKMATE_ARGUMENT:
       case SUPPRESS_ORIGINALS_ARGUMENT:
       case USE_VIRTUAL_HASH_TABLE_ARGUMENT:
-        process_argument(globals, argument[1], "");
+        process_argument(globals, &game_header, argument[1], "");
         argnum++;
         break;
 
         /* Argument rewritten as a different one. */
       case ALTERNATIVE_HELP_ARGUMENT:
-        process_argument(globals, HELP_ARGUMENT, "");
+        process_argument(globals, &game_header, HELP_ARGUMENT, "");
         argnum++;
         break;
 
@@ -193,7 +196,7 @@ int main(int argc, char *argv[]) {
          * It must be adjacent to the argument and not separated from it.
          */
       case TAG_EXTRACTION_ARGUMENT:
-        process_argument(globals, argument[1], &(argument[2]));
+        process_argument(globals, &game_header, argument[1], &(argument[2]));
         argnum++;
         break;
 
@@ -204,7 +207,7 @@ int main(int argc, char *argv[]) {
       case HELP_ARGUMENT:
       case OUTPUT_FORMAT_ARGUMENT:
       case USE_ECO_FILE_ARGUMENT:
-        process_argument(globals, argument[1], &(argument[2]));
+        process_argument(globals, &game_header, argument[1], &(argument[2]));
         argnum++;
         break;
 
@@ -222,8 +225,8 @@ int main(int argc, char *argv[]) {
         /* Find out how many arguments were consumed
          * (1 or 2).
          */
-        args_processed = process_long_form_argument(globals, &argument[2],
-                                                    possible_associated_value);
+        args_processed = process_long_form_argument(
+            globals, &game_header, &argument[2], possible_associated_value);
         argnum += args_processed;
       } break;
 
@@ -257,7 +260,7 @@ int main(int argc, char *argv[]) {
         } else {
           argnum++;
         }
-        process_argument(globals, argument[1], filename);
+        process_argument(globals, &game_header, argument[1], filename);
       } break;
 
       /* Arguments with a required following value. */
@@ -285,14 +288,14 @@ int main(int argc, char *argv[]) {
         } else {
           argnum++;
         }
-        process_argument(globals, argument[1], associated_value);
+        process_argument(globals, &game_header, argument[1], associated_value);
       } break;
 
       case OUTPUT_FEN_STRING_ARGUMENT:
         /* May be following by an optional argument immediately after
          * the argument letter.
          */
-        process_argument(globals, argument[1], &argument[2]);
+        process_argument(globals, &game_header, argument[1], &argument[2]);
         argnum++;
         break;
         /* Argument that require different treatment because they
@@ -328,10 +331,10 @@ int main(int argc, char *argv[]) {
         } else {
           argnum++;
         }
-        process_argument(globals, argument_letter, filename);
+        process_argument(globals, &game_header, argument_letter, filename);
       } break;
       case HASHCODE_MATCH_ARGUMENT:
-        process_argument(globals, argument[1], &argument[2]);
+        process_argument(globals, &game_header, argument[1], &argument[2]);
         argnum++;
         break;
       default:
@@ -383,7 +386,7 @@ int main(int argc, char *argv[]) {
     if (open_eco_file(globals, globals->eco_file)) {
       /* Indicate that the ECO file is currently being parsed. */
       globals->parsing_ECO_file = true;
-      yyparse(globals, ECOFILE);
+      yyparse(globals, &game_header, ECOFILE);
       reset_line_number();
       globals->parsing_ECO_file = false;
     } else {
@@ -398,7 +401,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  yyparse(globals, globals->current_file_type);
+  yyparse(globals, &game_header, globals->current_file_type);
 
   /* @@@ I would prefer this to be somewhere else. */
   if (globals->json_format && !globals->check_only) {
