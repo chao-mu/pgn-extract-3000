@@ -6,7 +6,7 @@ use std::{env, path::PathBuf};
 
 fn main() {
     // Run cmake to build nng
-    let dst = Config::new("pgne")
+    let dst = Config::new("..")
         .generator("Ninja")
         .define("CMAKE_BUILD_TYPE", "Release")
         .build();
@@ -14,10 +14,7 @@ fn main() {
     // Check output of `cargo build --verbose`, should see something like:
     // -L native=/path/runng/target/debug/build/runng-sys-abc1234/out
     // That contains output from cmake
-    println!(
-        "cargo:rustc-link-search=native={}",
-        dst.join("lib").display()
-    );
+    println!("cargo:rustc-link-search=native={}", dst.display());
     // Tell rustc to use nng static library
     println!("cargo:rustc-link-lib=static=pgne");
 
